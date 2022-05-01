@@ -1,6 +1,8 @@
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
 
+IMAGE ?= onshape_to_robot
+
 .PHONY: help
 help: ## Show usage information for this Makefile.
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort \
@@ -10,6 +12,10 @@ help: ## Show usage information for this Makefile.
 all:
 	@rm -rf dist/*
 	python3 setup.py sdist bdist_wheel
+
+.PHONY: docker-build
+docker-build:
+	docker build . -t $(IMAGE)
 
 .PHONY: build
 build: ## Build the Python package.
