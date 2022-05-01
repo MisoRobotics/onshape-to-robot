@@ -32,6 +32,7 @@ setuptools.setup(
         "bs4",
         "colorama",
         "commentjson",
+        "jinja2",
         "lxml",
         "numpy-stl",
         "numpy",
