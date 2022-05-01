@@ -24,3 +24,4 @@ to descriptions format like **URDF** or **SDF**, so that you can use them for ph
    config
    pure-shapes
    development
+   docker
