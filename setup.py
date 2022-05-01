@@ -32,6 +32,7 @@ setuptools.setup(
         "bs4",
         "colorama",
         "commentjson",
+        "jinja2",
         "lxml",
         "numpy-stl",
         "numpy",
@@ -40,6 +41,6 @@ setuptools.setup(
         "transforms3d",
     ],
     include_package_data=True,
-    package_data={"": ["bullet/*", "README.md"]},
+    package_data={"": ["bullet/*", "templates/*.jinja", "ros_package.yaml", "README.md"]},
     python_requires=">=3.6",
 )

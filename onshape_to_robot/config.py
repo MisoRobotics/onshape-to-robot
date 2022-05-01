@@ -88,6 +88,14 @@ config['useCollisionsConfigurations'] = configGet(
 
 # ROS support
 config['packageName'] = configGet('packageName', '')
+config["packageType"] = configGet("packageType", "none")
+ALLOWED_PACKAGE_TYPES = {"none", "ament"}
+if config["packageType"] not in ALLOWED_PACKAGE_TYPES:
+    raise ValueError(
+        "packageType '{}' must be one of: {}".format(
+            config["packageType"], list(ALLOWED_PACKAGE_TYPES)
+        )
+    )
 config['addDummyBaseLink'] = configGet('addDummyBaseLink', False)
 config['robotName'] = configGet('robotName', 'onshape')
 
