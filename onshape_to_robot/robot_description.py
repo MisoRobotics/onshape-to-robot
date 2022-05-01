@@ -1,13 +1,14 @@
+from abc import ABC, abstractmethod, abstractproperty
 import numpy as np
 import os
 import math
-import uuid
+from typing import Optional
 
 from pathlib import Path
 from xml.etree import ElementTree
-from xml.dom import minidom
 
 from . import stl_combine
+
 
 def rotationMatrixToEulerAngles(R):
     sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
@@ -48,24 +49,69 @@ def pose(matrix, frame=''):
 
     return sdf % (x, y, z, rpy[0], rpy[1], rpy[2])
 
+class RobotDescription(ABC):
 
-class RobotDescription(object):
-    def __init__(self, name):
-        self.drawCollisions = False
-        self.relative = True
-        self.mergeSTLs = 'no'
-        self.mergeSTLsCollisions = False
-        self.useFixedLinks = False
-        self.simplifySTLs = 'no'
-        self.maxSTLSize = 3
-        self.xml = ''
-        self.jointMaxEffort = 1
-        self.jointMaxVelocity = 10
-        self.noDynamics = False
-        self.packageName = ""
-        self.addDummyBaseLink = False
-        self.robotName = name
-        self.meshDir = None
+    def __init__(self, robotName: str) -> None:
+        self.robotName: str = robotName
+        self.drawCollisions: bool = False
+        self.relative: bool = True
+        self.mergeSTLs: str = "no"
+        self.mergeSTLsCollisions: bool = False
+        self.useFixedLinks: bool = False
+        self.simplifySTLs: str = "no"
+        self.maxSTLSize: int  = 3
+        self.xml: str = ""
+        self.jointMaxEffort: float = 1.
+        self.jointMaxVelocity: float = 10.
+        self.noDynamics: bool = False
+        self.packageName: str = ""
+        self.packageType: str = ""
+        self.addDummyBaseLink: bool = False
+        self.outputDir: Optional[Path] = None
+
+    @abstractproperty
+    def modelFormat(self) -> str:
+        """Return the format of the model, i.e., 'urdf' or 'sdf'."""
+        raise NotImplementedError()
+
+    @abstractproperty
+    def modelFilePath(self) -> str:
+        """Return the output filename for the model."""
+        raise NotImplementedError()
+
+    @property
+    def createRosPackage(self) -> bool:
+        """Return True if a ROS package should be created."""
+        return self.packageType != "none"
+
+    @abstractmethod
+    def getMeshUrl(self, filename: str) -> str:
+        """Return the URL for the specified mesh file."""
+        raise NotImplementedError()
+
+    @property
+    def meshDir(self) -> Path:
+        """Return the subdirectory in which meshes should be placed."""
+        path = self.getMeshDirHelper()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @abstractmethod
+    def getMeshDirHelper(self) -> Path:
+        """Return the subdirectory in which meshes should be placed."""
+        raise NotImplementedError()
+
+    @property
+    def modelDir(self) -> Path:
+        """Return the path to the robot model directory."""
+        path = self.getModelDirHelper()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @abstractmethod
+    def getModelDirHelper(self) -> Path:
+        """Return the path to the robot model directory."""
+        raise NotImplementedError()
 
     def shouldMergeSTLs(self, node):
         return self.mergeSTLs == 'all' or self.mergeSTLs == node
@@ -172,9 +218,34 @@ class RobotDescription(object):
 class RobotURDF(RobotDescription):
     def __init__(self, name):
         super().__init__(name)
-        self.ext = 'urdf'
         self.append('<robot name="' + self.robotName + '">')
         pass
+
+    @property
+    def modelFormat(self) -> str:
+        """Return the format of the model."""
+        return "urdf"
+
+    def getModelDirHelper(self) -> Path:
+        """Return the path to the robot model directory."""
+        return Path("urdf") if self.createRosPackage else Path(".")
+
+    def getMeshUrl(self, filename: str) -> str:
+        """Return the URL for the specified mesh file."""
+        path = f"package://{self.packageName}"
+        if self.createRosPackage:
+            path = f"{path}/meshes"
+        path = f"{path}/{filename}"
+        return path
+
+    def getMeshDirHelper(self) -> Path:
+        """Return the subdirectory in which meshes should be placed."""
+        return Path("meshes") if self.createRosPackage else Path(".")
+
+    @property
+    def modelFilePath(self) -> Path:
+        """Return the output filename for the model."""
+        return self.modelDir / "robot.urdf"
 
     def addDummyLink(self, name, visualMatrix=None, visualSTL=None, visualColor=None):
         self.append('<link name="'+name+'">')
@@ -275,8 +346,7 @@ class RobotURDF(RobotDescription):
         self.append('<'+node+'>')
         self.append(origin(matrix))
         self.append('<geometry>')
-        self.append('<mesh filename="package://' +
-                    self.packageName.strip("/") + "/" + stl+'"/>')
+        self.append(f'<mesh filename="{self.getMeshUrl(stl)}"/>')
         self.append('</geometry>')
         if node == "visual":
             self.append('<material name="'+name+'_material">')
@@ -359,11 +429,33 @@ class RobotURDF(RobotDescription):
 class RobotSDF(RobotDescription):
     def __init__(self, name):
         super().__init__(name)
-        self.ext = 'sdf'
         self.relative = False
         self.append('<sdf version="1.6">')
         self.append('<model name="'+self.robotName + '">')
-        pass
+
+    @property
+    def modelFormat(self) -> str:
+        """Return the format of the model."""
+        return "sdf"
+
+    @property
+    def modelFilePath(self) -> Path:
+        """Return the output filename for the model."""
+        return self.modelDir / "model.sdf"
+
+    def getModelDirHelper(self) -> Path:
+        """Return the path to the robot model directory."""
+        if self.createRosPackage:
+            return Path("models") / self.robotName
+        return Path(".")
+
+    def getMeshUrl(self, filename: str) -> str:
+        """Return the URL for the specified mesh file."""
+        return f"meshes/{filename}"
+
+    def getMeshDirHelper(self) -> Path:
+        """Return the subdirectory in which meshes should be placed."""
+        return self.modelDir / "meshes" if self.createRosPackage else Path(".")
 
     def addFixedJoint(self, parent, child, matrix, name=None):
         if name is None:
@@ -406,11 +498,11 @@ class RobotSDF(RobotDescription):
                 color = self._color / self._color_mass
                 filename = self._link_name+'_'+node+'.stl'
                 stl_combine.save_mesh(
-                    self._mesh[node], self.meshDir+'/'+filename)
+                    self._mesh[node], Path(self.meshDir) / filename)
                 if self.shouldSimplifySTLs(node):
                     stl_combine.simplify_stl(
-                        self.meshDir+'/'+filename, self.maxSTLSize)
-                self.addSTL(np.identity(4), filename, color, self._link_name, 'visual')
+                        Path(self.meshDir) / filename, self.maxSTLSize)
+                self.addSTL(np.identity(4), Path("meshes") / filename, color, self._link_name, 'visual')
 
         self.append('<inertial>')
         self.append('<pose frame="'+self._link_name +
@@ -457,7 +549,7 @@ class RobotSDF(RobotDescription):
         self.append('<'+node+' name="'+name+'_visual">')
         self.append(pose(matrix))
         self.append('<geometry>')
-        self.append('<mesh><uri>file://'+stl+'</uri></mesh>')
+        self.append(f'<mesh><uri>{stl}</uri></mesh>')
         self.append('</geometry>')
         if node == 'visual':
             self.append(self.material(color))
@@ -474,7 +566,7 @@ class RobotSDF(RobotDescription):
             if not self.drawCollisions:
                 if self.useFixedLinks:
                     self._visuals.append(
-                        [matrix, self.packageName + os.path.basename(stl), color])
+                        [matrix, Path("meshes") / os.path.basename(stl), color])
                 elif self.shouldMergeSTLs('visual'):
                     self.mergeSTL(stl, matrix, color, mass)
                 else:

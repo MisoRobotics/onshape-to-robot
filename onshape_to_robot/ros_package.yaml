@@ -1,0 +1,23 @@
+--- # Template mapping for generating packages.
+
+package_types:
+  - name: ament
+    files:
+      - source: flake8.jinja
+        destination: ./.flake8
+      - source: pyproject.toml.jinja
+        destination: ./pyproject.toml
+      - source: CMakeLists.txt.jinja
+        destination: ./CMakeLists.txt
+      - source: package.xml.jinja
+        destination: ./package.xml
+      - source: view_robot.launch.py.jinja
+        destination: ./launch/view_robot.launch.py
+      - source: view_robot.rviz.jinja
+        destination: ./rviz/view_robot.rviz
+
+model_formats:
+  - name: sdf
+    files:
+      - source: model.config.jinja
+        destination: ./models/{{ model_name }}/model.config
