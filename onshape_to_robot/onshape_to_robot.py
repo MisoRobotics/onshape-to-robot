@@ -9,7 +9,7 @@ import hashlib
 from pathlib import Path
 from . import csg
 from .robot_description import RobotURDF, RobotSDF
-
+from . import ros_package
 
 
 def main():
@@ -35,12 +35,12 @@ def main():
     robot.jointMaxVelocity = config['jointMaxVelocity']
     robot.noDynamics = config['noDynamics']
     robot.packageName = config['packageName']
+    robot.packageType = config['packageType']
     robot.addDummyBaseLink = config['addDummyBaseLink']
     robot.robotName = config['robotName']
     robot.additionalXML = config['additionalXML']
     robot.useFixedLinks = config['useFixedLinks']
-    robot.meshDir = config['outputDirectory']
-
+    robot.output_dir = Path(config['outputDirectory'])
 
     def partIsIgnore(name):
         if config['whitelist'] is None:
@@ -82,7 +82,7 @@ def main():
         if partIsIgnore(justPart):
             stlFile = None
         else:
-            stlFile = prefix.replace('/', '_')+'.stl'
+            stlFile = robot.meshDir / (prefix.replace('/', '_') + '.stl')
             # shorten the configuration to a maximum number of chars to prevent errors. Necessary for standard parts like screws
             if len(part['configuration']) > 40:
                 shortend_configuration = hashlib.md5(
@@ -91,14 +91,12 @@ def main():
                 shortend_configuration = part['configuration']
             stl = client.part_studio_stl_m(part['documentId'], part['documentMicroversion'], part['elementId'],
                                         part['partId'], shortend_configuration)
-            with open(config['outputDirectory']+'/'+stlFile, 'wb') as stream:
+            with open(stlFile, 'wb') as stream:
                 stream.write(stl)
 
             stlMetadata = prefix.replace('/', '_')+'.part'
-            with open(config['outputDirectory']+'/'+stlMetadata, 'w', encoding="utf-8") as stream:
+            with open(robot.meshDir / stlMetadata, 'w', encoding="utf-8") as stream:
                 json.dump(part, stream, indent=4, sort_keys=True)
-
-            stlFile = config['outputDirectory']+'/'+stlFile
 
         # Import the SCAD files pure shapes
         shapes = None
@@ -251,9 +249,19 @@ def main():
     # print(tree)
 
     print("\n" + Style.BRIGHT + "* Writing " +
-        robot.ext.upper()+" file" + Style.RESET_ALL)
-    filepath = Path(config["outputDirectory"]) / f"robot.{robot.ext}"
-    robot.write(filepath)
+        robot.modelFormat.upper()+" file" + Style.RESET_ALL)
+    output_directory = Path(config["outputDirectory"])
+    output_directory.mkdir(parents=True, exist_ok=True)
+    if robot.createRosPackage:
+        ros_package.generate_package(
+            robot.packageName,
+            robot.packageType,
+            robot.robotName,
+            robot.modelFormat,
+            output_directory
+        )
+    robot.write(robot.modelFilePath)
+
 
     if len(config['postImportCommands']):
         print("\n" + Style.BRIGHT + "* Executing post-import commands" + Style.RESET_ALL)
