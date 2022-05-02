@@ -61,7 +61,7 @@ def process_template(
     if not filename.endswith(".jinja"):
         filename += ".jinja"
     output_dir /= subdir
-    output_dir.mkdir(parents=False, exist_ok=True)
+    output_dir.mkdir(mode=0o755, exist_ok=True)
     output_filepath = output_dir / filename[: -len(".jinja")]
     rendered_content = render_template(filename, package_name)
     with open(output_filepath, "w", encoding="utf-8") as stream:

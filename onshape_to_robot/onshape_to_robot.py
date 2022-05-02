@@ -250,7 +250,7 @@ def main():
     if config["packageType"] != "none":
         generate_ament_package(config["packageName"], output_directory)
         output_directory /= "urdf"
-    output_directory.mkdir(exist_ok=True)
+    output_directory.mkdir(mode=0o755, exist_ok=True)
     filepath = output_directory / "robot.{}".format(robot.ext)
     robot.write(filepath)
 
