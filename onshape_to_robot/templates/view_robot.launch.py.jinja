@@ -2,51 +2,21 @@
 # -*- coding: utf-8 -*-
 
 from launch import LaunchDescription
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    """Generate the launch description."""
-    package = FindPackageShare("{{ package_name }}")
-
-    urdf = PathJoinSubstitution(package, "robot.urdf")
-    with open(urdf, "r", encoding="utf8") as stream:
-        content = stream.read()
-    robot_description = {"robot_description": content}
-
-    rviz_config_file = PathJoinSubstitution(
+    package_share = FindPackageShare("{{ package_name }}")
+    robot_description_content = Command(
         [
-            package,
-            "rviz",
-            "view_robot.rviz",
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
+            PathJoinSubstitution([package_share, "urdf", "robot.urdf"]),
         ]
     )
-
-    joint_state_publisher_node = Node(
-        package="joint_state_publisher_gui",
-        executable="joint_state_publisher_gui",
-    )
-
-    # Static TF
-    static_tf = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        name="static_transform_publisher",
-        output="log",
-        arguments=[
-            "0.0",
-            "0.0",
-            "0.0",
-            "0.0",
-            "0.0",
-            "0.0",
-            "world",
-            "base_link",
-        ],
-    )
-
+    robot_description = {"robot_description": robot_description_content}
     robot_state_publisher_node = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -54,6 +24,7 @@ def generate_launch_description():
         parameters=[robot_description],
     )
 
+    rviz_config_file = PathJoinSubstitution([package_share, "rviz", "view_robot.rviz"])
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
@@ -62,11 +33,23 @@ def generate_launch_description():
         arguments=["-d", rviz_config_file],
     )
 
-    nodes_to_start = [
-        joint_state_publisher_node,
-        static_tf,
-        robot_state_publisher_node,
-        rviz_node,
-    ]
+    joint_state_publisher_node = Node(
+        package="joint_state_publisher_gui", executable="joint_state_publisher_gui"
+    )
 
-    return LaunchDescription(nodes_to_start)
+    static_tf_node = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="static_transform_publisher",
+        output="log",
+        arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "base_link"],
+    )
+
+    return LaunchDescription(
+        [
+            joint_state_publisher_node,
+            static_tf_node,
+            robot_state_publisher_node,
+            rviz_node,
+        ]
+    )
