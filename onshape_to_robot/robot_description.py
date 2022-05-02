@@ -1,8 +1,9 @@
+from abc import ABC, abstractmethod, abstractproperty
+import dataclasses
 import numpy as np
 import os
 import math
-from typing import NewType
-import uuid
+from typing import Optional
 
 from pathlib import Path
 from xml.etree import ElementTree
@@ -51,39 +52,62 @@ def pose(matrix, frame=''):
 
     return sdf % (x, y, z, rpy[0], rpy[1], rpy[2])
 
-
-class RobotDescription(object):
-    def __init__(self, name):
-        self.drawCollisions = False
-        self.relative = True
-        self.mergeSTLs = 'no'
-        self.mergeSTLsCollisions = False
-        self.useFixedLinks = False
-        self.simplifySTLs = 'no'
-        self.maxSTLSize = 3
-        self.xml = ''
-        self.jointMaxEffort = 1
-        self.jointMaxVelocity = 10
-        self.noDynamics = False
-        self.packageName = ""
-        self.packageType: str = ""
-        self.addDummyBaseLink = False
-        self.robotName = name
-        self.meshDir = None
+@dataclasses.dataclass
+class RobotDescription(ABC):
+    robotName: str
+    drawCollisions: bool = False
+    relative: bool = True
+    mergeSTLs: str = "no"
+    mergeSTLsCollisions: bool = False
+    useFixedLinks: bool = False
+    simplifySTLs: str = "no"
+    maxSTLSize: int  = 3
+    xml: str = ""
+    jointMaxEffort: float = 1.
+    jointMaxVelocity: float = 10.
+    noDynamics: bool = False
+    packageName: str = ""
+    packageType: str = ""
+    addDummyBaseLink: bool = False
+    outputDir: Optional[Path] = None
 
     @property
-    def create_ros_package(self):
+    def createRosPackage(self) -> bool:
         """Return True if a ROS package should be created."""
         return self.packageType != "none"
 
-    def get_mesh_package_path(self, filename: str) -> str:
+    def getMeshPackageUrl(self, filename: str) -> str:
         """Return the package URL for meshes."""
         path = Path(self.packageName)
-        if self.packageType != "none":
+        if self.createRosPackage:
             path /= "meshes"
         path /= filename
-        path = "package://{}".format(str(path))
+        package_path = "package://{}".format(str(path))
+        return package_path
+
+    @property
+    def meshDir(self) -> Path:
+        """Return the subdirectory in which meshes should be placed."""
+        path = self.getMeshDirHelper()
+        path.mkdir(mode=0o755, parents=True, exist_ok=True)
         return path
+
+    @abstractmethod
+    def getMeshDirHelper(self) -> Path:
+        """Return the subdirectory in which meshes should be placed."""
+        raise NotImplementedError()
+
+    @property
+    def modelDir(self):
+        """Return the path to the robot model directory."""
+        path = self.getModelDirHelper()
+        path.mkdir(mode=0o755, parents=True, exist_ok=True)
+        return path
+
+    @abstractmethod
+    def getModelDirHelper(self):
+        """Return the path to the robot model directory."""
+        raise NotImplementedError()
 
     def shouldMergeSTLs(self, node):
         return self.mergeSTLs == 'all' or self.mergeSTLs == node
@@ -91,8 +115,10 @@ class RobotDescription(object):
     def shouldSimplifySTLs(self, node):
         return self.simplifySTLs == 'all' or self.simplifySTLs == node
 
-    def append(self, str):
-        self.xml += str+"\n"
+    def append(self, format_string: str, *args, **kwargs):
+        """Append the specified format string."""
+        self.xml += format_string.format(*args, **kwargs)
+        self.xml += "\n"
 
     def jointMaxEffortFor(self, jointName):
         if isinstance(self.jointMaxEffort, dict):
@@ -189,11 +215,18 @@ class RobotURDF(RobotDescription):
     def __init__(self, name):
         super().__init__(name)
         self.ext = 'urdf'
-        self.append('<robot name="' + self.robotName + '">')
-        pass
+        self.append('<robot name="{}">', self.robotName)
+
+    def getModelDirHelper(self) -> Path:
+        """Return the path to the robot model directory."""
+        return Path("urdf") if self.createRosPackage else Path(".")
+
+    def getMeshDirHelper(self) -> Path:
+        """Return the subdirectory in which meshes should be placed."""
+        return Path("meshes") if self.createRosPackage else Path(".")
 
     def addDummyLink(self, name, visualMatrix=None, visualSTL=None, visualColor=None):
-        self.append('<link name="'+name+'">')
+        self.append('<link name="{}">', name)
         self.append('<inertial>')
         self.append('<origin xyz="0 0 0" rpy="0 0 0" />')
         # XXX: We use a low mass because PyBullet consider mass 0 as world fixed
@@ -205,8 +238,13 @@ class RobotURDF(RobotDescription):
             '<inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />')
         self.append('</inertial>')
         if visualSTL is not None:
-            self.addSTL(visualMatrix, visualSTL, visualColor,
-                        name+"_visual", 'visual')
+            self.addSTL(
+                visualMatrix,
+                visualSTL,
+                visualColor,
+                "{}_visual".format(name),
+                'visual',
+            )
         self.append('</link>')
 
     def addDummyBaseLinkMethod(self, name):
@@ -214,7 +252,7 @@ class RobotURDF(RobotDescription):
         self.append('<link name="base_link"></link>')
         self.append('<joint name="base_link_to_base" type="fixed">')
         self.append('<parent link="base_link"/>')
-        self.append('<child link="' + name + '" />')
+        self.append('<child link="{}" />', name)
         self.append('<origin rpy="0.0 0 0" xyz="0 0 0"/>')
         self.append('</joint>')
 
@@ -222,10 +260,10 @@ class RobotURDF(RobotDescription):
         if name is None:
             name = parent+'_'+child+'_fixing'
 
-        self.append('<joint name="'+name+'" type="fixed">')
+        self.append('<joint name="{}" type="fixed">', name)
         self.append(origin(matrix))
-        self.append('<parent link="'+parent+'" />')
-        self.append('<child link="'+child+'" />')
+        self.append('<parent link="{}" />', parent)
+        self.append('<child link="{}" />', child)
         self.append('<axis xyz="0 0 0"/>')
         self.append('</joint>')
         self.append('')
@@ -237,7 +275,7 @@ class RobotURDF(RobotDescription):
         if self.addDummyBaseLink:
             self.addDummyBaseLinkMethod(name)
             self.addDummyBaseLink = False
-        self.append('<link name="'+name+'">')
+        self.append('<link name="{}">', name)
 
     def endLink(self):
         mass, com, inertia = self.linkDynamics()
@@ -249,9 +287,10 @@ class RobotURDF(RobotDescription):
                 else:
                     color = [0.5, 0.5, 0.5]
 
-                filename = self._link_name+'_'+node+'.stl'
+                filename = "{}_{}.stl".format(self._link_name, node)
                 stl_combine.save_mesh(
-                    self._mesh[node], Path(self.meshDir) / filename)
+                    self._mesh[node], self.meshDir / filename)
+                raise Exception(self.meshDir)
                 if self.shouldSimplifySTLs(node):
                     stl_combine.simplify_stl(Path(self.meshDir) / filename, self.maxSTLSize)
                 self.addSTL(np.identity(4), filename, color, self._link_name, node)
@@ -277,27 +316,35 @@ class RobotURDF(RobotDescription):
                 n += 1
                 visual_name = '%s_%d' % (self._link_name, n)
                 self.addDummyLink(visual_name, visual[0], visual[1], visual[2])
-                self.addJoint('fixed', self._link_name, visual_name,
-                              np.eye(4), visual_name+'_fixing', None)
+                self.addJoint(
+                    'fixed',
+                    self._link_name,
+                    visual_name,
+                    np.eye(4),
+                    '{}_fixing'.format(visual_name),
+                    None,
+                )
 
     def addFrame(self, name, matrix):
         # Adding a dummy link
         self.addDummyLink(name)
 
         # Linking it with last link with a fixed link
-        self.addFixedJoint(self._link_name, name, matrix, name+'_frame')
+        self.addFixedJoint(
+            self._link_name, name, matrix, '{}_frame'.format(name)
+        )
 
     def addSTL(self, matrix, stl, color, name, node='visual'):
         self.append('<'+node+'>')
         self.append(origin(matrix))
         self.append('<geometry>')
-        self.append('<mesh filename="{}"/>'.format(stl))
+        self.append('<mesh filename="{}"/>', self.getMeshPackageUrl(stl))
         self.append('</geometry>')
-        self.append('<material name="'+name+'_material">')
+        self.append('<material name="{}_material">', name)
         self.append('<color rgba="%g %g %g 1.0"/>' %
                     (color[0], color[1], color[2]))
         self.append('</material>')
-        self.append('</'+node+'>')
+        self.append('</{}>', node)
 
     def addPart(self, matrix, stl, mass, com, inertia, color, shapes=None, name=''):
         if stl is not None:
@@ -325,10 +372,10 @@ class RobotURDF(RobotDescription):
                             stl), color, name, entry)
                 else:
                     # Inserting pure shapes in the URDF model
-                    self.append('<!-- Shapes for '+name+' -->')
+                    self.append('<!-- Shapes for {} -->', name)
                     for shape in shapes:
-                        self.append('<'+entry+'>')
-                        self.append(origin(matrix*shape['transform']))
+                        self.append('<{}>', entry)
+                        self.append(origin(matrix * shape['transform']))
                         self.append('<geometry>')
                         if shape['type'] == 'cube':
                             self.append('<box size="%g %g %g" />' %
@@ -342,7 +389,7 @@ class RobotURDF(RobotDescription):
                         self.append('</geometry>')
 
                         if entry == 'visual':
-                            self.append('<material name="'+name+'_material">')
+                            self.append('<material name="{}_material">', name)
                             self.append('<color rgba="%g %g %g 1.0"/>' %
                                         (color[0], color[1], color[2]))
                             self.append('</material>')
@@ -351,10 +398,10 @@ class RobotURDF(RobotDescription):
         self.addLinkDynamics(matrix, mass, com, inertia)
 
     def addJoint(self, jointType, linkFrom, linkTo, transform, name, jointLimits, zAxis=[0, 0, 1]):
-        self.append('<joint name="'+name+'" type="'+jointType+'">')
+        self.append('<joint name="{}" type="{}">', name, jointType)
         self.append(origin(transform))
-        self.append('<parent link="'+linkFrom+'" />')
-        self.append('<child link="'+linkTo+'" />')
+        self.append('<parent link="{}" />', linkFrom)
+        self.append('<child link="{}" />', linkTo)
         self.append('<axis xyz="%g %g %g"/>' % tuple(zAxis))
         lowerUpperLimits = ''
         if jointLimits is not None:
@@ -376,22 +423,31 @@ class RobotSDF(RobotDescription):
         self.ext = 'sdf'
         self.relative = False
         self.append('<sdf version="1.6">')
-        self.append('<model name="'+self.robotName + '">')
-        pass
+        self.append('<model name="{}">', self.robotName)
+
+    def getModelDirHelper(self) -> Path:
+        """Return the path to the robot model directory."""
+        if self.createRosPackage:
+            return Path("models") / self.robotName
+        return Path(".")
+
+    def getMeshDirHelper(self) -> Path:
+        """Return the subdirectory in which meshes should be placed."""
+        return self.modelDir / "meshes" if self.createRosPackage else Path(".")
 
     def addFixedJoint(self, parent, child, matrix, name=None):
         if name is None:
-            name = parent+'_'+child+'_fixing'
+            name = "_".join([parent, '_', child, '_fixing'])
 
-        self.append('<joint name="'+name+'" type="fixed">')
+        self.append('<joint name="{}" type="fixed">', name)
         self.append(pose(matrix))
-        self.append('<parent>'+parent+'</parent>')
-        self.append('<child>'+child+'</child>')
+        self.append('<parent>{}</parent>', parent)
+        self.append('<child>{}</child>', child)
         self.append('</joint>')
         self.append('')
 
     def addDummyLink(self, name, visualMatrix=None, visualSTL=None, visualColor=None):
-        self.append('<link name="'+name+'">')
+        self.append('<link name="{}">', name)
         self.append('<pose>0 0 0 0 0 0</pose>')
         self.append('<inertial>')
         self.append('<pose>0 0 0 0 0 0</pose>')
@@ -402,14 +458,19 @@ class RobotSDF(RobotDescription):
         self.append('</inertia>')
         self.append('</inertial>')
         if visualSTL is not None:
-            self.addSTL(visualMatrix, visualSTL, visualColor,
-                        name+"_visual", "visual")
+            self.addSTL(
+                visualMatrix,
+                visualSTL,
+                visualColor,
+                "{}_visual".format(name),
+                "visual",
+            )
         self.append('</link>')
 
     def startLink(self, name, matrix):
         self._link_name = name
         self.resetLink()
-        self.append('<link name="'+name+'">')
+        self.append('<link name="{}">', name)
         self.append(pose(matrix, name))
 
     def endLink(self):
@@ -418,7 +479,7 @@ class RobotSDF(RobotDescription):
         for node in ['visual', 'collision']:
             if self._mesh[node] is not None:
                 color = self._color / self._color_mass
-                filename = self._link_name+'_'+node+'.stl'
+                filename = "{}_{}.stl".format(self._link_name, node)
                 stl_combine.save_mesh(
                     self._mesh[node], Path(self.meshDir) / filename)
                 if self.shouldSimplifySTLs(node):
@@ -447,15 +508,23 @@ class RobotSDF(RobotDescription):
                 n += 1
                 visual_name = '%s_%d' % (self._link_name, n)
                 self.addDummyLink(visual_name, visual[0], visual[1], visual[2])
-                self.addJoint('fixed', self._link_name, visual_name,
-                              np.eye(4), visual_name+'_fixing', None)
+                self.addJoint(
+                    'fixed',
+                    self._link_name,
+                    visual_name,
+                    np.eye(4),
+                    '{}_fixing'.format(visual_name),
+                    None,
+                )
 
     def addFrame(self, name, matrix):
         # Adding a dummy link
         self.addDummyLink(name)
 
         # Linking it with last link with a fixed link
-        self.addFixedJoint(self._link_name, name, matrix, name+'_frame')
+        self.addFixedJoint(
+            self._link_name, name, matrix, '{}_frame'.format(name)
+        )
 
     def material(self, color):
         m = '<material>'
@@ -468,17 +537,17 @@ class RobotSDF(RobotDescription):
         return m
 
     def addSTL(self, matrix, stl, color, name, node='visual'):
-        self.append('<'+node+' name="'+name+'_visual">')
+        self.append('<{} name="{}_visual">', node, name)
         self.append(pose(matrix))
         self.append('<geometry>')
-        self.append('<mesh><uri>file://'+stl+'</uri></mesh>')
+        self.append('<mesh><uri>file://{}</uri></mesh>', stl)
         self.append('</geometry>')
         if node == 'visual':
             self.append(self.material(color))
-        self.append('</'+node+'>')
+        self.append('</{}>', node)
 
     def addPart(self, matrix, stl, mass, com, inertia, color, shapes=None, name=''):
-        name = self._link_name+'_'+str(self._link_childs)+'_'+name
+        name = "_".join([self._link_name, str(self._link_childs), name])
         self._link_childs += 1
 
         # self.append('<link name="'+name+'">')
@@ -508,11 +577,13 @@ class RobotSDF(RobotDescription):
                 else:
                     # Inserting pure shapes in the URDF model
                     k = 0
-                    self.append('<!-- Shapes for '+name+' -->')
+                    self.append('<!-- Shapes for {} -->', name)
                     for shape in shapes:
                         k += 1
-                        self.append('<'+entry+' name="'+name +
-                                    '_'+entry+'_'+str(k)+'">')
+                        self.append(
+                            '<{entry} name="{name}_{entry}_{suffix}">',
+                                name=name, entry=entry, suffix=str(k)
+                            )
                         self.append(pose(matrix*shape['transform']))
                         self.append('<geometry>')
                         if shape['type'] == 'cube':
@@ -528,15 +599,15 @@ class RobotSDF(RobotDescription):
 
                         if entry == 'visual':
                             self.append(self.material(color))
-                        self.append('</'+entry+'>')
+                        self.append('</{}>', entry)
 
         self.addLinkDynamics(matrix, mass, com, inertia)
 
     def addJoint(self, jointType, linkFrom, linkTo, transform, name, jointLimits, zAxis=[0, 0, 1]):
-        self.append('<joint name="'+name+'" type="'+jointType+'">')
+        self.append('<joint name="{}" type="{}">', name, jointType)
         self.append(pose(transform))
-        self.append('<parent>'+linkFrom+'</parent>')
-        self.append('<child>'+linkTo+'</child>')
+        self.append('<parent>{}</parent>', linkFrom)
+        self.append('<child>{}</child>', linkTo)
         self.append('<axis>')
         self.append('<xyz>%g %g %g</xyz>' % tuple(zAxis))
         lowerUpperLimits = ''
