@@ -240,13 +240,17 @@ def main():
     # print(tree)
 
     print("\n" + Style.BRIGHT + "* Writing " +
-        robot.ext.upper()+" file" + Style.RESET_ALL)
+        robot.modelFormat.upper()+" file" + Style.RESET_ALL)
     output_directory = Path(config["outputDirectory"])
     output_directory.mkdir(mode=0o755, exist_ok=True)
     if robot.createRosPackage:
-        generate_ament_package(config["packageName"], output_directory)
-    filepath = robot.modelDir / "robot.{}".format(robot.ext)
-    robot.write(filepath)
+        generate_ament_package(
+            robot.packageName,
+            robot.robotName,
+            robot.modelFormat,
+            output_directory
+        )
+    robot.write(robot.modelFilePath)
 
 
     if len(config['postImportCommands']):
