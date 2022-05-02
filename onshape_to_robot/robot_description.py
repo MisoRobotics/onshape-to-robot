@@ -553,3 +553,4 @@ class RobotSDF(RobotDescription):
         self.append(self.additionalXML)
         self.append('</model>')
         self.append('</sdf>')
+        self.append('')
