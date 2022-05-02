@@ -53,7 +53,7 @@ class Client():
     def get_cache_path() -> Path:
         """Return the path to the user cache."""
         path = Path.home() / ".cache" / "onshape-to-robot"
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(mode=0o755, exist_ok=True, parents=True)
         return path
 
 
