@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import math
+from typing import NewType
 import uuid
 
 from pathlib import Path
@@ -65,9 +66,24 @@ class RobotDescription(object):
         self.jointMaxVelocity = 10
         self.noDynamics = False
         self.packageName = ""
+        self.packageType: str = ""
         self.addDummyBaseLink = False
         self.robotName = name
         self.meshDir = None
+
+    @property
+    def create_ros_package(self):
+        """Return True if a ROS package should be created."""
+        return self.packageType != "none"
+
+    def get_mesh_package_path(self, filename: str) -> str:
+        """Return the package URL for meshes."""
+        path = Path(self.packageName)
+        if self.packageType != "none":
+            path /= "meshes"
+        path /= filename
+        path = "package://{}".format(str(path))
+        return path
 
     def shouldMergeSTLs(self, node):
         return self.mergeSTLs == 'all' or self.mergeSTLs == node
@@ -235,9 +251,9 @@ class RobotURDF(RobotDescription):
 
                 filename = self._link_name+'_'+node+'.stl'
                 stl_combine.save_mesh(
-                    self._mesh[node], self.meshDir+'/'+filename)
+                    self._mesh[node], Path(self.meshDir) / filename)
                 if self.shouldSimplifySTLs(node):
-                    stl_combine.simplify_stl(self.meshDir+'/'+filename, self.maxSTLSize)
+                    stl_combine.simplify_stl(Path(self.meshDir) / filename, self.maxSTLSize)
                 self.addSTL(np.identity(4), filename, color, self._link_name, node)
 
         self.append('<inertial>')
@@ -275,8 +291,7 @@ class RobotURDF(RobotDescription):
         self.append('<'+node+'>')
         self.append(origin(matrix))
         self.append('<geometry>')
-        self.append('<mesh filename="package://' +
-                    self.packageName.strip("/") + "/" + stl+'"/>')
+        self.append('<mesh filename="{}"/>'.format(stl))
         self.append('</geometry>')
         self.append('<material name="'+name+'_material">')
         self.append('<color rgba="%g %g %g 1.0"/>' %
@@ -289,7 +304,7 @@ class RobotURDF(RobotDescription):
             if not self.drawCollisions:
                 if self.useFixedLinks:
                     self._visuals.append(
-                        [matrix, self.packageName + os.path.basename(stl), color])
+                        [matrix, Path(self.packageName) / os.path.basename(stl), color])
                 elif self.shouldMergeSTLs('visual'):
                     self.mergeSTL(stl, matrix, color, mass)
                 else:
@@ -405,10 +420,10 @@ class RobotSDF(RobotDescription):
                 color = self._color / self._color_mass
                 filename = self._link_name+'_'+node+'.stl'
                 stl_combine.save_mesh(
-                    self._mesh[node], self.meshDir+'/'+filename)
+                    self._mesh[node], Path(self.meshDir) / filename)
                 if self.shouldSimplifySTLs(node):
                     stl_combine.simplify_stl(
-                        self.meshDir+'/'+filename, self.maxSTLSize)
+                        Path(self.meshDir) / filename, self.maxSTLSize)
                 self.addSTL(np.identity(4), filename, color, self._link_name, 'visual')
 
         self.append('<inertial>')
@@ -473,7 +488,7 @@ class RobotSDF(RobotDescription):
             if not self.drawCollisions:
                 if self.useFixedLinks:
                     self._visuals.append(
-                        [matrix, self.packageName + os.path.basename(stl), color])
+                        [matrix, Path(self.packageName) / os.path.basename(stl), color])
                 elif self.shouldMergeSTLs('visual'):
                     self.mergeSTL(stl, matrix, color, mass)
                 else:

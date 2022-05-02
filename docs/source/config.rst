@@ -195,6 +195,13 @@ Can override the color for parts (should be an array: ``[r, g, b]`` with numbers
 Prepends a string to the paths of STL files. This is helpful for ROS users as they often need to specify their
 ``robot_description`` package.
 
+``packageType``
+~~~~~~~~~~~~~~~
+
+*optional, default: none*
+
+In addition to the robot description file, also generate a package for ROS 2 with option ``ros2``.
+
 ``addDummyBaseLink``
 ~~~~~~~~~~~~~~~~~~~~
 
