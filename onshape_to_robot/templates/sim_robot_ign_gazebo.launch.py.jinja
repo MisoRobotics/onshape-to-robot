@@ -1,0 +1,102 @@
+"""Launch the robot in Ignition Gazebo."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+from pathlib import Path
+
+from launch import LaunchDescription
+from launch.substitutions import PathJoinSubstitution
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare, LaunchConfiguration
+
+
+def generate_launch_description():
+    """Generate the launch description."""
+    package = FindPackageShare("{{ package_name }}")
+    use_sim_time = LaunchConfiguration("use_sim_time", default=True)
+    sdf_file = PathJoinSubstitution(
+        [package, "models", "{{ robot_name }}", "model.sdf"]
+    )
+
+    with open(sdf_file, "r", encoding="utf8") as stream:
+        content = stream.read()
+
+    node_robot_state_publisher = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        output="screen",
+        parameters=[{"robot_description": content}],
+    )
+
+    ignition_spawn_entity = Node(
+        package="ros_ign_gazebo",
+        executable="create",
+        output="screen",
+        arguments=[
+            "-string",
+            content,
+            "-name",
+            "cartpole",
+            "-allow_renaming",
+            "true",
+        ],
+    )
+
+    urdf = PathJoinSubstitution(package, "robot.urdf")
+    with open(urdf, "r", encoding="utf8") as stream:
+        content = stream.read()
+    robot_description = {"robot_description": content}
+
+    rviz_config_file = PathJoinSubstitution(
+        [
+            package,
+            "rviz",
+            "view_robot.rviz",
+        ]
+    )
+
+    joint_state_publisher_node = Node(
+        package="joint_state_publisher_gui",
+        executable="joint_state_publisher_gui",
+    )
+
+    # Static TF
+    static_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="static_transform_publisher",
+        output="log",
+        arguments=[
+            "0.0",
+            "0.0",
+            "0.0",
+            "0.0",
+            "0.0",
+            "0.0",
+            "world",
+            "base_link",
+        ],
+    )
+
+    robot_state_publisher_node = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        output="both",
+        parameters=[robot_description],
+    )
+
+    rviz_node = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="log",
+        arguments=["-d", rviz_config_file],
+    )
+
+    nodes_to_start = [
+        joint_state_publisher_node,
+        static_tf,
+        robot_state_publisher_node,
+        rviz_node,
+    ]
+
+    return LaunchDescription(nodes_to_start)
