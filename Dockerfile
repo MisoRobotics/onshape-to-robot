@@ -15,6 +15,6 @@ RUN python setup.py build && python setup.py install && python setup.py clean --
 
 WORKDIR /
 RUN rm -rf /app
-RUN mkdir -m777 /.cache
+RUN mkdir -m755 /.cache
 ENTRYPOINT ["onshape-to-robot", "/workspace"]
 CMD []
