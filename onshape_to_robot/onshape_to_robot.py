@@ -41,10 +41,7 @@ def main():
     robot.robotName = config['robotName']
     robot.additionalXML = config['additionalXML']
     robot.useFixedLinks = config['useFixedLinks']
-    if robot.packageType != "none":
-        robot.meshDir = os.path.join(config['outputDirectory'], "meshes")
-    else:
-        robot.meshDir = config['outputDirectory']
+    robot.outputDir = Path(config['outputDirectory'])
 
     def partIsIgnore(name):
         if config['whitelist'] is None:
@@ -83,7 +80,7 @@ def main():
         if partIsIgnore(justPart):
             stlFile = None
         else:
-            stlFile = prefix.replace('/', '_')+'.stl'
+            stlFile = robot.meshDir / (prefix.replace('/', '_') + '.stl')
             # shorten the configuration to a maximum number of chars to prevent errors. Necessary for standard parts like screws
             if len(part['configuration']) > 40:
                 shortend_configuration = hashlib.md5(
@@ -92,14 +89,12 @@ def main():
                 shortend_configuration = part['configuration']
             stl = client.part_studio_stl_m(part['documentId'], part['documentMicroversion'], part['elementId'],
                                         part['partId'], shortend_configuration)
-            with open(config['outputDirectory']+'/'+stlFile, 'wb') as stream:
+            with open(stlFile, 'wb') as stream:
                 stream.write(stl)
 
             stlMetadata = prefix.replace('/', '_')+'.part'
-            with open(config['outputDirectory']+'/'+stlMetadata, 'w', encoding="utf-8") as stream:
+            with open(robot.meshDir / stlMetadata, 'w', encoding="utf-8") as stream:
                 json.dump(part, stream, indent=4, sort_keys=True)
-
-            stlFile = config['outputDirectory']+'/'+stlFile
 
         # Import the SCAD files pure shapes
         shapes = None
@@ -247,11 +242,10 @@ def main():
     print("\n" + Style.BRIGHT + "* Writing " +
         robot.ext.upper()+" file" + Style.RESET_ALL)
     output_directory = Path(config["outputDirectory"])
-    if config["packageType"] != "none":
-        generate_ament_package(config["packageName"], output_directory)
-        output_directory /= "urdf"
     output_directory.mkdir(mode=0o755, exist_ok=True)
-    filepath = output_directory / "robot.{}".format(robot.ext)
+    if robot.createRosPackage:
+        generate_ament_package(config["packageName"], output_directory)
+    filepath = robot.modelDir / "robot.{}".format(robot.ext)
     robot.write(filepath)
 
 
