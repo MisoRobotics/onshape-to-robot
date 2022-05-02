@@ -91,6 +91,8 @@ def generate_ament_package(
 
     """
     templates = {
+        ".flake8": Path("."),
+        "pyproject.toml": Path("."),
         "CMakeLists.txt": Path("."),
         "package.xml": Path("."),
         "view_robot.launch.py": Path("launch"),
