@@ -9,7 +9,7 @@ import hashlib
 from pathlib import Path
 from . import csg
 from .robot_description import RobotURDF, RobotSDF
-
+from .ros2 import generate_ament_package
 
 partNames = {}
 
@@ -36,12 +36,15 @@ def main():
     robot.jointMaxVelocity = config['jointMaxVelocity']
     robot.noDynamics = config['noDynamics']
     robot.packageName = config['packageName']
+    robot.packageType = config['packageType']
     robot.addDummyBaseLink = config['addDummyBaseLink']
     robot.robotName = config['robotName']
     robot.additionalXML = config['additionalXML']
     robot.useFixedLinks = config['useFixedLinks']
-    robot.meshDir = config['outputDirectory']
-
+    if robot.packageType != "none":
+        robot.meshDir = os.path.join(config['outputDirectory'], "meshes")
+    else:
+        robot.meshDir = config['outputDirectory']
 
     def partIsIgnore(name):
         if config['whitelist'] is None:
@@ -243,8 +246,14 @@ def main():
 
     print("\n" + Style.BRIGHT + "* Writing " +
         robot.ext.upper()+" file" + Style.RESET_ALL)
-    filepath = Path(config['outputDirectory']) / "robot.{}".format(robot.ext)
+    output_directory = Path(config["outputDirectory"])
+    if config["packageType"] != "none":
+        generate_ament_package(config["packageName"], output_directory)
+        output_directory /= "urdf"
+    output_directory.mkdir(exist_ok=True)
+    filepath = output_directory / "robot.{}".format(robot.ext)
     robot.write(filepath)
+
 
     if len(config['postImportCommands']):
         print("\n" + Style.BRIGHT + "* Executing post-import commands" + Style.RESET_ALL)
