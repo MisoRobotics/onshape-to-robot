@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://gist.githubusercontent.com/nalt/dfa2abc9d2e3ae4feb82ca5608090387/raw/roslaunch.xsd">
+  <!-- View the robot in RViz. -->
+
+  <param name="/robot_description" value="$(find {{ package_name }})/urdf/robot.urdf" />
+  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" />
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+  <node name="static_transform_publisher" pkg="tf2_ros" type="static_transform_publisher" output="log" args="0.0 0.0 0.0 0.0 0.0 0.0 world base_link" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find {{ package_name }})/rviz/view_robot.rviz" />
+</launch>

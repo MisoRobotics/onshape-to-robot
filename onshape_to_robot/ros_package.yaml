@@ -15,6 +15,20 @@ package_types:
         destination: ./launch/view_robot.launch.py
       - source: view_robot.rviz.jinja
         destination: ./rviz/view_robot.rviz
+  - name: catkin
+    files:
+      - source: flake8.jinja
+        destination: ./.flake8
+      - source: pyproject.toml.jinja
+        destination: ./pyproject.toml
+      - source: CMakeLists.txt.jinja
+        destination: ./CMakeLists.txt
+      - source: package.xml.jinja
+        destination: ./package.xml
+      - source: view_robot.launch.xml.jinja
+        destination: ./launch/view_robot.launch
+      - source: view_robot.rviz.jinja
+        destination: ./rviz/view_robot.rviz
 
 model_formats:
   - name: sdf
