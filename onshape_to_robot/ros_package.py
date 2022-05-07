@@ -15,12 +15,15 @@ def _validate_package_name(package_name: str) -> None:
         warn(f"Package name {package_name} does not end with '_description'.")
 
 
-def render_template(filename: str, package_name: str, model_name: str) -> str:
+def render_template(
+    filename: str, package_name: str, package_type: str, model_name: str
+) -> str:
     """Render the specified template file and return as a string.
 
     Args:
         filename: Name of the template file from the templates folder.
         package_name: Name of the generated catkin/ament package.
+        package_type: The type of package to generate like "ament".
         model_name: The name of the model to generate.
 
     Returns:
@@ -36,6 +39,7 @@ def render_template(filename: str, package_name: str, model_name: str) -> str:
     template = env.get_template(filename)
     rendered_content = template.render(
         package_name=package_name,
+        package_type=package_type,
         model_name=model_name,
     )
     return rendered_content
@@ -45,6 +49,7 @@ def process_template(
     filename: str,
     subpath: Path,
     package_name: str,
+    package_type: str,
     model_name: str,
     output_dir: Path = Path.cwd(),
 ) -> Path:
@@ -54,6 +59,7 @@ def process_template(
         filename: Name of the template file from the templates folder.
         subpath: Subpath at which to place output file.
         package_name: Name of the generated catkin/ament package.
+        package_type: The type of package to generate like "ament".
         model_name: The name of the model to generate.
         output_dir: Directory into which to place generated files.
 
@@ -66,7 +72,7 @@ def process_template(
     output_filepath = output_dir / subpath
     output_dir = Path(os.path.dirname(output_filepath))
     output_dir.mkdir(parents=True, exist_ok=True)
-    rendered_content = render_template(filename, package_name, model_name)
+    rendered_content = render_template(filename, package_name, package_type, model_name)
     with open(output_filepath, "w", encoding="utf-8") as stream:
         stream.write(rendered_content)
     return output_filepath
@@ -88,7 +94,8 @@ def get_templates(
     loader = FileSystemLoader(searchpath=os.path.dirname(__file__))
     env = Environment(loader=loader)
     template = env.get_template("ros_package.yaml")
-    data = yaml.load(template.render(**template_parameters), Loader=yaml.Loader)
+    rendered = template.render(**template_parameters)
+    data = yaml.load(rendered, Loader=yaml.Loader)
     package_templates = defaultdict(list)
     package_templates.update(
         {item["name"]: item["files"] for item in data["package_types"]}
@@ -120,7 +127,12 @@ def generate_package(
     templates = get_templates(package_type, model_format, model_name=model_name)
     generated_files = [
         process_template(
-            item["source"], item["destination"], package_name, model_name, output_dir
+            item["source"],
+            item["destination"],
+            package_name,
+            package_type,
+            model_name,
+            output_dir,
         )
         for item in templates
     ]
