@@ -89,7 +89,7 @@ config['useCollisionsConfigurations'] = configGet(
 # ROS support
 config['packageName'] = configGet('packageName', '')
 config["packageType"] = configGet("packageType", "none")
-ALLOWED_PACKAGE_TYPES = {"none", "ament"}
+ALLOWED_PACKAGE_TYPES = {"none", "ament", "catkin"}
 if config["packageType"] not in ALLOWED_PACKAGE_TYPES:
     raise ValueError(
         "packageType '{}' must be one of: {}".format(
