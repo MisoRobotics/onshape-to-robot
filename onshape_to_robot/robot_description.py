@@ -164,6 +164,21 @@ class RobotDescription(ABC):
             'inertia': inertia
         })
 
+    def addFrame(self, name, matrix):
+        print(f"- Adding frame {name} to robot")
+        self.addDummyLink(name)
+
+        # Linking it with last link with a fixed link
+        self.addFixedJoint(self._link_name, name, matrix, name+'_frame')
+
+    @abstractmethod
+    def addDummyLink(self, name, visualMatrix=None, visualSTL=None, visualColor=None):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def addFixedJoint(self, parent, child, matrix, name=None):
+        raise NotImplementedError()
+
     def mergeSTL(self, stl, matrix, color, mass, node='visual'):
         if node == 'visual':
             self._color += np.array(color) * mass
@@ -340,13 +355,6 @@ class RobotURDF(RobotDescription):
                 self.addDummyLink(visual_name, visual[0], visual[1], visual[2])
                 self.addJoint('fixed', self._link_name, visual_name,
                               np.eye(4), visual_name+'_fixing', None)
-
-    def addFrame(self, name, matrix):
-        # Adding a dummy link
-        self.addDummyLink(name)
-
-        # Linking it with last link with a fixed link
-        self.addFixedJoint(self._link_name, name, matrix, name+'_frame')
 
     def addSTL(self, matrix, stl, color, name, node='visual'):
         self.append('<'+node+'>')
@@ -536,13 +544,6 @@ class RobotSDF(RobotDescription):
                 self.addDummyLink(visual_name, visual[0], visual[1], visual[2])
                 self.addJoint('fixed', self._link_name, visual_name,
                               np.eye(4), visual_name+'_fixing', None)
-
-    def addFrame(self, name, matrix):
-        # Adding a dummy link
-        self.addDummyLink(name)
-
-        # Linking it with last link with a fixed link
-        self.addFixedJoint(self._link_name, name, matrix, name+'_frame')
 
     def material(self, color):
         m = '<material>'
