@@ -14,7 +14,7 @@ from .robot_description import RobotURDF, RobotSDF
 def main():
     # Loading configuration, collecting occurrences and building robot tree
     from .load_robot import \
-        config, client, tree, occurrences, getOccurrence, frames
+        config, client, tree, occurrences, occurrenceNameById, getOccurrence, frames
 
 
     # Creating robot for output
@@ -76,8 +76,7 @@ def main():
             symbol = '-'
             extra += Style.DIM + ' / ignoring visual and collision'
 
-        print(Fore.GREEN + symbol+' Adding part ' +
-            occurrence['instance']['name']+extra + Style.RESET_ALL)
+        print(f"{Fore.GREEN}{symbol} Adding part {occurrence['instance']['name']} with parent {occurrenceNameById[occurrence['assignation']]}{extra}{Style.RESET_ALL}")
 
         if partIsIgnore(justPart):
             stlFile = None
@@ -195,6 +194,7 @@ def main():
 
 
     def buildRobot(tree, matrix):
+        print(f"> Building robot for tree {occurrenceNameById[tree['id']]} ...")
         occurrence = getOccurrence([tree['id']])
         instance = occurrence['instance']
         print(Fore.BLUE + Style.BRIGHT +
@@ -218,6 +218,7 @@ def main():
                 if robot.relative:
                     frame = np.linalg.inv(matrix)*frame
                 robot.addFrame(name, frame)
+        print(f"Tree {occurrenceNameById[tree['id']]} has children: {[occurrenceNameById[c['id']] for c in tree['children']]}")
 
         # Following the children in the tree, calling this function recursively
         k = 0
