@@ -52,8 +52,14 @@ def main():
     # Adds a part to the current robot link
 
 
+    def renamePart(name):
+        """Remove special characters from part names."""
+        return name.replace('"', "in").replace("'", "ft")
+
     def addPart(occurrence, matrix):
         part = occurrence['instance']
+        part['name'] = renamePart(part['name'])
+        part['configuration'] = renamePart(part['configuration'])
 
         if part['suppressed']:
             return
