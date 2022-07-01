@@ -10,7 +10,6 @@ from . import csg
 from .robot_description import RobotURDF, RobotSDF
 
 
-partNames = {}
 
 def main():
     # Loading configuration, collecting occurrences and building robot tree
@@ -170,7 +169,6 @@ def main():
 
     def processPartName(name, configuration, overrideName=None):
         if overrideName is None:
-            global partNames
             _, name = extractPartName(name, configuration)
 
             if name in partNames:
