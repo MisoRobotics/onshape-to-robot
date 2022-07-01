@@ -97,6 +97,8 @@ for occurrence in root['occurrences']:
     occurrence['linkName'] = None
     occurrences[tuple(occurrence['path'])] = occurrence
 
+import debugpy; debugpy.breakpoint()
+
 # Gets an occurrence given its full path
 
 
@@ -120,6 +122,12 @@ def assignParts(root, parent):
     for occurrence in occurrences.values():
         if occurrence['path'][0] == root:
             occurrence['assignation'] = parent
+
+
+def connectParts(child, parent):
+    print(f"> Connecting child {child} to parent {parent}")
+    assignParts(child, parent)
+
 
 from .features import init as features_init, getLimits
 features_init(client, config, root, workspaceId, assemblyId)
@@ -259,9 +267,16 @@ if len(relations) == 0:
     assignParts(trunk, trunk)
 
 
-def connectParts(child, parent):
-    assignParts(child, parent)
-
+def doConnect(name, occurrence_1, occurrence_2):
+    if name.startswith('frame_'):
+        name = '_'.join(name.split('_')[1:])
+        print(f"= Found frame {name}")
+        part = assignations[occurrence_1] if config['drawFrames'] else 'frame'
+        frame = data['matedEntities'][1]['matedOccurrence']
+        frames[occurrence_1].append([name, frame])
+        assignParts(occurrence_2, part)
+    else:
+        connectParts(occurrence_2, assignations[occurrence_1])
 
 # Spreading parts assignations, this parts mainly does two things:
 # 1. Finds the parts of the top level assembly that are not directly in a sub assembly and try to assign them
@@ -285,27 +300,12 @@ while changed:
         occurrenceB = data['matedEntities'][1]['matedOccurrence'][0]
 
         if (occurrenceA not in assignations) != (occurrenceB not in assignations):
-            if data['name'][0:5] == 'frame':
-                name = '_'.join(data['name'].split('_')[1:])
-                if occurrenceA in assignations:
-                    frames[occurrenceA].append(
-                        [name, data['matedEntities'][1]['matedOccurrence']])
-                    assignParts(occurrenceB, {True: assignations[occurrenceA], False: 'frame'}[
-                                config['drawFrames']])
-                    changed = True
-                else:
-                    frames[occurrenceB].append(
-                        [name, data['matedEntities'][0]['matedOccurrence']])
-                    assignParts(occurrenceA, {True: assignations[occurrenceB], False: 'frame'}[
-                                config['drawFrames']])
-                    changed = True
+            changed = True
+            name = data['name']
+            if occurrenceA in assignations:
+                doConnect(name, occurrenceA, occurrenceB)
             else:
-                if occurrenceA in assignations:
-                    connectParts(occurrenceB, assignations[occurrenceA])
-                    changed = True
-                else:
-                    connectParts(occurrenceA, assignations[occurrenceB])
-                    changed = True
+                doConnect(name, occurrenceB, occurrenceA)
 
 # Building and checking robot tree, here we:
 # 1. Search for robot trunk (which will be the top-level link)
