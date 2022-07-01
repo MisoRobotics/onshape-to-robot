@@ -11,7 +11,6 @@ from . import csg
 from .robot_description import RobotURDF, RobotSDF
 from . import ros_package
 
-partNames = {}
 
 def main():
     # Loading configuration, collecting occurrences and building robot tree
