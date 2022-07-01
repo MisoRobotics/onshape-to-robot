@@ -1,63 +1,73 @@
-from collections import defaultdict
 import math
-from sys import exit
-import numpy as np
 import uuid
-from .onshape_api.client import Client
+from collections import defaultdict
+from sys import exit
+
+import numpy as np
+from colorama import Back, Fore, Style
+
 from .config import config, configFile
-from colorama import Fore, Back, Style
+from .onshape_api.client import Client, get_assembly_from_url
 
 # OnShape API client
 workspaceId = None
 client = Client(logging=False, creds=configFile)
 client.useCollisionsConfigurations = config['useCollisionsConfigurations']
 
-# If a versionId is provided, it will be used, else the main workspace is retrieved
-if config['versionId'] != '':
-    print("\n" + Style.BRIGHT + '* Using configuration version ID ' +
-          config['versionId']+' ...' + Style.RESET_ALL)
-elif config['workspaceId'] != '':
-    print("\n" + Style.BRIGHT + '* Using configuration workspace ID ' +
-          config['workspaceId']+' ...' + Style.RESET_ALL)
-    workspaceId = config['workspaceId']
+if config['documentUrl']:
+    print("\n" + Style.BRIGHT + '* Using Documents API URL ' +
+          config['documentUrl']+' ...' + Style.RESET_ALL)
+    assemblySource = get_assembly_from_url(config['documentUrl'])
 else:
-    print("\n" + Style.BRIGHT + '* Retrieving workspace ID ...' + Style.RESET_ALL)
-    document = client.get_document(config['documentId']).json()
-    workspaceId = document['defaultWorkspace']['id']
-    print(Fore.GREEN + "+ Using workspace id: " + workspaceId + Style.RESET_ALL)
+    # If a versionId is provided, it will be used, else the main workspace is retrieved
+    if config['versionId'] != '':
+        print("\n" + Style.BRIGHT + '* Using configuration version ID ' +
+            config['versionId']+' ...' + Style.RESET_ALL)
+    elif config['workspaceId'] != '':
+        print("\n" + Style.BRIGHT + '* Using configuration workspace ID ' +
+            config['workspaceId']+' ...' + Style.RESET_ALL)
+        workspaceId = config['workspaceId']
+    else:
+        print("\n" + Style.BRIGHT + '* Retrieving workspace ID ...' + Style.RESET_ALL)
+        document = client.get_document(config['documentId']).json()
+        workspaceId = document['defaultWorkspace']['id']
+        print(Fore.GREEN + "+ Using workspace id: " + workspaceId + Style.RESET_ALL)
 
-# Now, finding the assembly, according to given name in configuration, or else the first possible one
-print("\n" + Style.BRIGHT +
-      '* Retrieving elements in the document, searching for the assembly...' + Style.RESET_ALL)
-if config['versionId'] != '':
-    elements = client.list_elements(
-        config['documentId'], config['versionId'], 'v').json()
-else:
-    elements = client.list_elements(config['documentId'], workspaceId).json()
-assemblyId = None
-assemblyName = ''
-for element in elements:
-    if element['type'] == 'Assembly' and \
-            (config['assemblyName'] is False or element['name'] == config['assemblyName']):
-        print(Fore.GREEN + "+ Found assembly, id: " +
-              element['id']+', name: "'+element['name']+'"' + Style.RESET_ALL)
-        assemblyName = element['name']
-        assemblyId = element['id']
+    # Now, finding the assembly, according to given name in configuration, or else the first possible one
+    print("\n" + Style.BRIGHT +
+        '* Retrieving elements in the document, searching for the assembly...' + Style.RESET_ALL)
+    if config['versionId'] != '':
+        elements = client.list_elements(
+            config['documentId'], config['versionId'], 'v').json()
+    else:
+        elements = client.list_elements(config['documentId'], workspaceId).json()
+    assemblyId = None
+    assemblyName = ''
+    for element in elements:
+        if element['type'] == 'Assembly' and \
+                (config['assemblyName'] is False or element['name'] == config['assemblyName']):
+            print(Fore.GREEN + "+ Found assembly, id: " +
+                element['id']+', name: "'+element['name']+'"' + Style.RESET_ALL)
+            assemblyName = element['name']
+            assemblyId = element['id']
 
-if assemblyId == None:
-    print(Fore.RED + "ERROR: Unable to find assembly in this document" + Style.RESET_ALL)
-    exit(1)
+    if assemblyId == None:
+        print(Fore.RED + "ERROR: Unable to find assembly in this document" + Style.RESET_ALL)
+        exit(1)
+    assemblySource = {
+        "did": config['documentId'],
+        "wid": config['versionId'] or workspaceId,
+        "eid": assemblyId,
+        "type": "v" if config['versionId'] else "w",
+    }
+
+assemblyId = assemblySource['eid']
+workspaceId = assemblySource['wid']
 
 # Retrieving the assembly
-print("\n" + Style.BRIGHT + '* Retrieving assembly "' +
-      assemblyName+'" with id '+assemblyId + Style.RESET_ALL)
-if config['versionId'] != '':
-    assembly = client.get_assembly(
-        config['documentId'], config['versionId'], assemblyId, 'v', configuration=config['configuration'])
-else:
-    assembly = client.get_assembly(
-        config['documentId'], workspaceId, assemblyId, configuration=config['configuration'])
-
+print("\n" + Style.BRIGHT + '* Retrieving assembly '+ assemblyId + Style.RESET_ALL)
+assemblySource["configuration"] = config['configuration']
+assembly = client.get_assembly(**assemblySource)
 root = assembly['rootAssembly']
 
 # Finds a (leaf) instance given the full path, typically A B C where A and B would be subassemblies and C
@@ -97,7 +107,12 @@ for occurrence in root['occurrences']:
     occurrence['linkName'] = None
     occurrences[tuple(occurrence['path'])] = occurrence
 
-import debugpy; debugpy.breakpoint()
+occurrencesByName = {
+    o['instance']['name']: o for o in occurrences.values()
+}
+occurrencesById = {
+    o['instance']['id']: o['instance']['name'] for o in occurrences.values()
+}
 
 # Gets an occurrence given its full path
 
@@ -129,7 +144,9 @@ def connectParts(child, parent):
     assignParts(child, parent)
 
 
-from .features import init as features_init, getLimits
+from .features import getLimits
+from .features import init as features_init
+
 features_init(client, config, root, workspaceId, assemblyId)
 
 # First, features are scanned to find the DOFs. Links that they connects are then tagged
@@ -195,7 +212,7 @@ for feature in features:
             matedEntity = data['matedEntities'][0]
             matedTransform = getOccurrence(
                 matedEntity['matedOccurrence'])['transform']
-            
+
             # jointToPart is the (rotation only) matrix from joint to the part
             # it is attached to
             jointToPart = np.eye(4)
@@ -204,7 +221,7 @@ for feature in features:
                 np.array(matedEntity['matedCS']['yAxis']),
                 np.array(matedEntity['matedCS']['zAxis'])
             )).T
-            
+
             if data['inverted']:
                 if limits is not None:
                     limits = (-limits[1], -limits[0])
@@ -331,13 +348,13 @@ for occurrence in occurrences.values():
         connectParts(child, trunk)
 
 
-def collect(id):
+def collect(part_id):
     part = {}
-    part['id'] = id
+    part['id'] = part_id
     part['children'] = []
     for childId in relations:
         entry = relations[childId]
-        if entry['parent'] == id:
+        if entry['parent'] == part_id:
             child = collect(childId)
             child['axis_frame'] = entry['worldAxisFrame']
             child['z_axis'] = entry['zAxis']

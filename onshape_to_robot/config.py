@@ -42,6 +42,7 @@ if not os.path.exists(configFile):
 with open(configFile, "r", encoding="utf8") as stream:
     config = json.load(stream)
 
+config['documentUrl'] = configGet('documentUrl', '')
 config['documentId'] = configGet('documentId')
 config['versionId'] = configGet('versionId', '')
 config['workspaceId'] = configGet('workspaceId', '')
