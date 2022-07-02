@@ -3,7 +3,7 @@ import math
 from sys import exit
 import numpy as np
 import uuid
-from .onshape_api.client import Client
+from .onshape_api.client import Client, get_assembly_from_url
 from .config import config, configFile
 from colorama import Fore, Back, Style
 
@@ -11,6 +11,22 @@ from colorama import Fore, Back, Style
 workspaceId = None
 client = Client(logging=False, creds=configFile)
 client.useCollisionsConfigurations = config['useCollisionsConfigurations']
+
+if config['documentsUrl']:
+    print("\n" + Style.BRIGHT + '* Using Documents API URL ' +
+          config['documentsUrl']+' ...' + Style.RESET_ALL)
+    source = get_assembly_from_url(config['documentsUrl'])
+    assembly = client.get_assembly(
+        source['did'], source['wid'], source['eid'], source['type'],
+        configuration=config['configuration'])
+    config["documentId"] = source['did']
+    if source["type"] == 'v':
+        config["versionId"] = source['wid']
+    else:
+        config["workspaceId"] = source['wid']
+    # config["assemblyName"] = assembly['rootAssembly']
+else:
+    assembly = None
 
 # If a versionId is provided, it will be used, else the main workspace is retrieved
 if config['versionId'] != '':
@@ -52,10 +68,10 @@ if assemblyId == None:
 print("\n" + Style.BRIGHT + '* Retrieving assembly "' +
       assemblyName+'" with id '+assemblyId + Style.RESET_ALL)
 if config['versionId'] != '':
-    assembly = client.get_assembly(
+    assembly = assembly or client.get_assembly(
         config['documentId'], config['versionId'], assemblyId, 'v', configuration=config['configuration'])
 else:
-    assembly = client.get_assembly(
+    assembly = assembly or client.get_assembly(
         config['documentId'], workspaceId, assemblyId, configuration=config['configuration'])
 
 root = assembly['rootAssembly']
@@ -200,7 +216,7 @@ for feature in features:
             matedEntity = data['matedEntities'][0]
             matedTransform = getOccurrence(
                 matedEntity['matedOccurrence'])['transform']
-            
+
             # jointToPart is the (rotation only) matrix from joint to the part
             # it is attached to
             jointToPart = np.eye(4)
@@ -209,7 +225,7 @@ for feature in features:
                 np.array(matedEntity['matedCS']['yAxis']),
                 np.array(matedEntity['matedCS']['zAxis'])
             )).T
-            
+
             if data['inverted']:
                 if limits is not None:
                     limits = (-limits[1], -limits[0])

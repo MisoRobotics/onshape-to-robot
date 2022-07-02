@@ -13,13 +13,32 @@ import string
 import os
 import json
 import hashlib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from urllib.parse import unquote, urlparse
+
 
 def double_escape_slash(s):
     return s.replace('/', '%252f')
 
+
 def escape_slash(s):
     return s.replace('/', '%2f')
+
+
+def get_assembly_from_url(url: str) -> dict:
+    """Return the assembly for the specified Onshape URL."""
+    api = PurePosixPath(unquote(urlparse(url).path))
+    if api.parts[3] not in {'v', 'w'}:
+        raise ValueError(
+            "URL format must be either '/documents/{did}/w/{wid}/e/{eid}' "
+            "or '/documents/{did}/v/{vid}/e/{eid}'."
+        )
+    return {
+        "did": api.parts[2],
+        "wid": api.parts[4],
+        "eid": api.parts[6],
+        "type": api.parts[3],
+    }
 
 class Client():
     '''
