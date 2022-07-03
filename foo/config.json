@@ -1,0 +1,12 @@
+{
+    "documentsUrl": "https://cad.onshape.com/documents/d506c3768f3fc18029d8b061/v/ba0b7e4b686b894dcffc4e82/e/748aa32ded9f460a96f84d5b",
+    "outputFormat": "urdf",
+    "useScads": true,
+    "drawCollisions": true,
+    "drawFrames": false,
+    "packageName": "flippy_world_description",
+    "packageType": "catkin",
+    "addDummyBaseLink": false,
+    "robotName": "flippy_world",
+    "simplifySTLs": "collision"
+  }
