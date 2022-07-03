@@ -5,16 +5,16 @@ client
 Convenience functions for working with the Onshape API
 '''
 
-from .onshape import Onshape
-
+import hashlib
+import json
 import mimetypes
+import os
 import random
 import string
-import os
-import json
-import hashlib
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlparse
+
+from .onshape import Onshape
 
 
 def double_escape_slash(s):

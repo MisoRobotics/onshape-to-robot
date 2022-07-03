@@ -1,11 +1,16 @@
-from collections import defaultdict
+import dataclasses
 import math
-from sys import exit
-import numpy as np
 import uuid
-from .onshape_api.client import Client, get_assembly_from_url
+from collections import defaultdict
+from sys import exit
+from typing import Final
+
+import numpy as np
+from colorama import Back, Fore, Style
+from onshape_client import OnshapeElement
+
 from .config import config, configFile
-from colorama import Fore, Back, Style
+from .onshape_api.client import Client, get_assembly_from_url
 
 # OnShape API client
 workspaceId = None
@@ -13,8 +18,9 @@ client = Client(logging=False, creds=configFile)
 client.useCollisionsConfigurations = config['useCollisionsConfigurations']
 
 if config['documentsUrl']:
-    print("\n" + Style.BRIGHT + '* Using Documents API URL ' +
-          config['documentsUrl']+' ...' + Style.RESET_ALL)
+    print(f"\n{Style.BRIGHT}* Using Documents API URL {config['documentsUrl']}...{Style.RESET_ALL}")
+    root_assembly: Final[OnshapeElement] = OnshapeElement(config["documentsUrl"])
+
     source = get_assembly_from_url(config['documentsUrl'])
     assembly = client.get_assembly(
         source['did'], source['wid'], source['eid'], source['type'],
@@ -24,9 +30,9 @@ if config['documentsUrl']:
         config["versionId"] = source['wid']
     else:
         config["workspaceId"] = source['wid']
-    # config["assemblyName"] = assembly['rootAssembly']
 else:
     assembly = None
+    raise Exception("Only documentsUrl is supported.")
 
 # If a versionId is provided, it will be used, else the main workspace is retrieved
 if config['versionId'] != '':
@@ -38,8 +44,9 @@ elif config['workspaceId'] != '':
     workspaceId = config['workspaceId']
 else:
     print("\n" + Style.BRIGHT + '* Retrieving workspace ID ...' + Style.RESET_ALL)
-    document = client.get_document(config['documentId']).json()
-    workspaceId = document['defaultWorkspace']['id']
+    response = client.get_document(config['documentId']).json()
+    workspaceId = response['defaultWorkspace']['id']
+    config["workspaceId"] = workspaceId
     print(Fore.GREEN + "+ Using workspace id: " + workspaceId + Style.RESET_ALL)
 
 # Now, finding the assembly, according to given name in configuration, or else the first possible one
@@ -65,14 +72,10 @@ if assemblyId == None:
     exit(1)
 
 # Retrieving the assembly
-print("\n" + Style.BRIGHT + '* Retrieving assembly "' +
-      assemblyName+'" with id '+assemblyId + Style.RESET_ALL)
-if config['versionId'] != '':
-    assembly = assembly or client.get_assembly(
-        config['documentId'], config['versionId'], assemblyId, 'v', configuration=config['configuration'])
-else:
-    assembly = assembly or client.get_assembly(
-        config['documentId'], workspaceId, assemblyId, configuration=config['configuration'])
+print(f"\n{Style.BRIGHT}* Retrieving assembly {root_assembly.name}...{Style.RESET_ALL}")
+assembly = assembly or client.get_assembly(
+    root_assembly.did, root_assembly.wvmid, root_assembly.eid, root_assembly.wvm, configuration=config['configuration']
+)
 
 root = assembly['rootAssembly']
 
@@ -150,8 +153,12 @@ def connectParts(child, parent):
     assignParts(child, parent)
 
 
-from .features import init as features_init, getLimits
+from .features import FeatureSource
+from .features import init as features_init
+
 features_init(client, config, root, workspaceId, assemblyId)
+
+FEATURES: FeatureSource = FeatureSource(client._api.onshape_client, root_assembly)
 
 # First, features are scanned to find the DOFs. Links that they connects are then tagged
 print("\n" + Style.BRIGHT +
@@ -198,11 +205,11 @@ for feature in features:
                 jointType = 'revolute'
 
                 if not config['ignoreLimits']:
-                    limits = getLimits(jointType, data['name'])
+                    limits = FEATURES.get_limits(data['name'])
             elif data['mateType'] == 'SLIDER':
                 jointType = 'prismatic'
                 if not config['ignoreLimits']:
-                    limits = getLimits(jointType, data['name'])
+                    limits = FEATURES.get_limits(data['name'])
             elif data['mateType'] == 'FASTENED':
                 jointType = 'fixed'
             else:

@@ -34,6 +34,7 @@ setuptools.setup(
         "jinja2",
         "numpy-stl",
         "numpy",
+        "onshape_client",
         "pybullet",
         "PyYAML",
         "requests",
