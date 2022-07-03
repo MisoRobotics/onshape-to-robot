@@ -3,6 +3,7 @@ commentjson
 jinja2
 numpy
 numpy-stl
+onshape_client
 pybullet
 PyYAML
 requests
