@@ -1,20 +1,18 @@
+import dataclasses
 import math
-from colorama import Fore, Back, Style
+from typing import Final, Optional, Tuple
 
-joint_features = {}
+from colorama import Back, Fore, Style
+from onshape_client import Client as OnshapeClient
+from onshape_client import OnshapeElement
+
+from .onshape_api.client import Client
+
 configuration_parameters = {}
 
 
 def init(client, config, root, workspaceId, assemblyId):
-    global configuration_parameters, joint_features
-
-    # Load joint features to get limits later
-    if config['versionId'] == '':
-        joint_features = client.get_features(
-            config['documentId'], workspaceId, assemblyId)
-    else:
-        joint_features = client.get_features(
-            config['documentId'], config['versionId'], assemblyId, type='v')
+    global configuration_parameters
 
     # Retrieving root configuration parameters
     configuration_parameters = {}
@@ -79,31 +77,50 @@ def readParameterValue(parameter, name):
 
 # Gets the limits of a given joint
 
+@dataclasses.dataclass
+class FeatureSource:
+    """Fetch feature data from the Onshape API."""
 
-def getLimits(jointType, name):
-    enabled = False
-    minimum, maximum = 0, 0
-    for feature in joint_features['features']:
-        # Find coresponding joint
-        if name == feature['message']['name']:
-            # Find min and max values
-            for parameter in feature['message']['parameters']:
-                if parameter['message']['parameterId'] == "limitsEnabled":
-                    enabled = parameter['message']['value']
+    def __init__(self, client: OnshapeClient, element: OnshapeElement) -> None:
+        self._client: Final[OnshapeClient] = client
+        self._element: Final[OnshapeElement] = element
 
-                if jointType == 'revolute':
-                    if parameter['message']['parameterId'] == 'limitAxialZMin':
-                        minimum = readParameterValue(parameter, name)
-                    if parameter['message']['parameterId'] == 'limitAxialZMax':
-                        maximum = readParameterValue(parameter, name)
-                elif jointType == 'prismatic':
-                    if parameter['message']['parameterId'] == 'limitZMin':
-                        minimum = readParameterValue(parameter, name)
-                    if parameter['message']['parameterId'] == 'limitZMax':
-                        maximum = readParameterValue(parameter, name)
-    if enabled:
-        return (minimum, maximum)
-    else:
-        print(Fore.YELLOW + 'WARNING: joint ' + name + ' of type ' +
-              jointType + ' has no limits ' + Style.RESET_ALL)
-        return None
+    def get_feature(self, name: str) -> dict:
+        features = self._client.assemblies_api.get_features(
+            self._element.did,
+            self._element.wvm,
+            self._element.wvmid,
+            self._element.eid
+        )
+        for feature in features["features"]:
+            if feature["name"] == name:
+                return feature
+        raise Exception(f"Feature '{name}' not found.")
+    
+    def get_limits(self, name: str) -> Optional[Tuple[float, float]]:
+        """Return the joint limits from the named joint on the specified assembly."""
+        feature = self.get_feature(name)
+        print(f"feature: {feature.name}")
+        print(feature.parameters)
+        parameters = {p.parameter_id: p for p in feature.parameters}
+        mate_type = parameters["mateType"].value
+        enabled = parameters["limitsEnabled"].value
+        if mate_type == "REVOLUTE":
+            joint_type = "revolute"
+            infix = "Axial"
+        if mate_type == "SLIDER":
+            joint_type = "prismatic"
+            infix = ""
+        else:
+            raise ValueError(f"Unknown joint type '{joint_type}'")
+
+        if not enabled:
+            print(
+                f"{Fore.YELLOW}WARNING: Joint '{name}' of type '{joint_type}' has no limits.{Style.RESET_ALL}"
+            )
+            return None
+
+        return tuple((
+            readExpression(parameters[f"limit{infix}Z{suffix}"].expression)
+            for suffix in ("Min", "Max")
+        ))
