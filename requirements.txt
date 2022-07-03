@@ -1,11 +1,10 @@
-bs4
 colorama
 commentjson
 jinja2
-lxml
 numpy
 numpy-stl
 pybullet
+pyYAML
 requests
 sphinx
 sphinx-rtd-theme

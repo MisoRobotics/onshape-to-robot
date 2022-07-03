@@ -7,8 +7,6 @@ from typing import Optional
 from pathlib import Path
 from xml.etree import ElementTree
 
-from bs4 import BeautifulSoup
-
 from . import stl_combine
 
 
