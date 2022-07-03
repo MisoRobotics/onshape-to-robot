@@ -5,21 +5,22 @@ onshape
 Provides access to the Onshape REST API
 '''
 
-from . import utils
-
+import base64
+import datetime
+import hashlib
+import hmac
 import os
 import random
 import string
-import commentjson as json
-import hmac
-import hashlib
-import base64
 import urllib
-import datetime
+from urllib.parse import parse_qs, urlparse
+
+import commentjson as json
 import requests
-from colorama import Fore, Back, Style
-from urllib.parse import urlparse
-from urllib.parse import parse_qs
+from colorama import Fore, Style
+from onshape_client import Client as OnshapeClient
+
+from . import utils
 
 __all__ = [
     'Onshape'
@@ -94,6 +95,14 @@ class Onshape():
 
         if self._logging:
             utils.log('onshape instance created: url = %s, access key = %s' % (self._url, self._access_key))
+
+        # The new OpenAPI client
+        client_config = {
+            "base_url": self._url,
+            "access_key": self._access_key,
+            "secret_key": self._secret_key,
+        }
+        self.onshape_client = OnshapeClient(configuration=client_config)
 
     def _make_nonce(self):
         '''
