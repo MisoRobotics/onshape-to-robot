@@ -2,6 +2,7 @@ import numpy as np
 from copy import copy
 import commentjson as json
 from colorama import Fore, Back, Style
+import re
 import sys
 from sys import exit
 import os
@@ -42,9 +43,13 @@ def main():
     robot.useFixedLinks = config['useFixedLinks']
     robot.output_dir = Path(config['outputDirectory'])
 
+    ignore_regex = [re.compile(pattern) for pattern in config['ignoreRegex']]
+
     def partIsIgnore(name):
         if config['whitelist'] is None:
-            return name in config['ignore']
+            return name in config['ignore'] or any(
+                [p.search(name) for p in ignore_regex]
+            )
         else:
             return name not in config['whitelist']
 
