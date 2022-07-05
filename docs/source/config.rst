@@ -172,6 +172,16 @@ This can be a list of parts that you want to be ignored during the export.
 
 Note: the dynamics of the part will not be ignored, but the visual and collision aspect will.
 
+``ignoreRegex``
+~~~~~~~~~~
+
+*optional, default: []*
+
+This can be a list of regex patterns that you want to compare against part names
+to ignore parts during the export.
+
+Note: the dynamics of the part will not be ignored, but the visual and collision aspect will.
+
 ``whitelist``
 ~~~~~~~~~~~~~
 

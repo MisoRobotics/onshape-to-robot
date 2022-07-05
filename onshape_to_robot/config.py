@@ -65,6 +65,7 @@ config['noDynamics'] = configGet('noDynamics', False)
 
 # Ignore list
 config['ignore'] = configGet('ignore', [])
+config['ignoreRegex'] = configGet('ignoreRegex', [])
 config['whitelist'] = configGet('whitelist', None, hasDefault=True)
 
 # Color override
