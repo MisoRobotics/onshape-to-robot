@@ -264,16 +264,14 @@ class RobotURDF(RobotDescription):
 
     def addDummyLink(self, name, visualMatrix=None, visualSTL=None, visualColor=None):
         self.append('<link name="'+name+'">')
-        self.append('<inertial>')
-        self.append('<origin xyz="0 0 0" rpy="0 0 0" />')
+        self.append('  <inertial>')
         # XXX: We use a low mass because PyBullet consider mass 0 as world fixed
         if self.noDynamics:
-            self.append('<mass value="0" />')
+            self.append('    <mass value="0" />')
         else:
-            self.append('<mass value="1e-9" />')
-        self.append(
-            '<inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />')
-        self.append('</inertial>')
+            self.append('    <mass value="1e-4" />')
+        self.append('    <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />')
+        self.append(  '</inertial>')
         if visualSTL is not None:
             self.addSTL(visualMatrix, visualSTL, visualColor,
                         name+"_visual", 'visual')
@@ -298,6 +296,12 @@ class RobotURDF(RobotDescription):
         self.append('<child link="'+child+'" />')
         self.append('<axis xyz="0 0 0"/>')
         self.append('</joint>')
+        self.append(f'<gazebo reference="{parent}">')
+        self.append('  <preserveFixedJoint>true</preserveFixedJoint>')
+        self.append('</gazebo>')
+        self.append(f'<gazebo reference="{name}">')
+        self.append('  <preserveFixedJoint>true</preserveFixedJoint>')
+        self.append('</gazebo>')
         self.append('')
 
     def startLink(self, name, matrix):
@@ -474,19 +478,20 @@ class RobotSDF(RobotDescription):
         self.append('<parent>'+parent+'</parent>')
         self.append('<child>'+child+'</child>')
         self.append('</joint>')
+        self.append(f'<gazebo reference="{parent}">')
+        self.append('  <preserveFixedJoint>true</preserveFixedJoint>')
+        self.append('</gazebo>')
+        self.append(f'<gazebo reference="{name}">')
+        self.append('  <preserveFixedJoint>true</preserveFixedJoint>')
+        self.append('</gazebo>')
         self.append('')
 
     def addDummyLink(self, name, visualMatrix=None, visualSTL=None, visualColor=None):
         self.append('<link name="'+name+'">')
-        self.append('<pose>0 0 0 0 0 0</pose>')
-        self.append('<inertial>')
-        self.append('<pose>0 0 0 0 0 0</pose>')
-        self.append('<mass>1e-9</mass>')
-        self.append('<inertia>')
-        self.append(
-            '<ixx>0</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0</iyy><iyz>0</iyz><izz>0</izz>')
-        self.append('</inertia>')
-        self.append('</inertial>')
+        self.append('  <inertial>')
+        self.append('    <mass>1e-4</mass>')
+        self.append('    <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />')
+        self.append('  </inertial>')
         if visualSTL is not None:
             self.addSTL(visualMatrix, visualSTL, visualColor,
                         name+"_visual", "visual")
