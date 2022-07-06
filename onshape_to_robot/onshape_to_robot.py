@@ -150,11 +150,11 @@ def main():
                     inertia = massProperties["inertia"]
                 except IndexError:
                     # The part of type Surface has no mass properties.
-                    mass = 0
+                    mass = 1e-4
                     com = [0] * 3
                     inertia = [0] * 9
 
-                if abs(mass) < 1e-9:
+                if abs(mass) < 1e-4:
                     print(Fore.YELLOW + 'WARNING: part ' +
                         part['name']+' has no mass, maybe you should assign a material to it ?' + Style.RESET_ALL)
 
