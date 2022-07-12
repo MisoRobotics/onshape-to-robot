@@ -1,5 +1,6 @@
 colorama
 commentjson
+Cython
 jinja2
 numpy
 numpy-stl
