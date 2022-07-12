@@ -31,6 +31,7 @@ setuptools.setup(
     install_requires=[
         "colorama",
         "commentjson",
+        "Cython",
         "jinja2",
         "numpy-stl",
         "numpy",
