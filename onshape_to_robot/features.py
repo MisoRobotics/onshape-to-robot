@@ -96,12 +96,10 @@ class FeatureSource:
             if feature["name"] == name:
                 return feature
         raise Exception(f"Feature '{name}' not found.")
-    
+
     def get_limits(self, name: str) -> Optional[Tuple[float, float]]:
         """Return the joint limits from the named joint on the specified assembly."""
         feature = self.get_feature(name)
-        print(f"feature: {feature.name}")
-        print(feature.parameters)
         parameters = {p.parameter_id: p for p in feature.parameters}
         mate_type = parameters["mateType"].value
         enabled = parameters["limitsEnabled"].value
