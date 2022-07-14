@@ -4,6 +4,8 @@ import os
 import commentjson as json
 from colorama import Fore, Back, Style
 
+from .material_tags import load_material_tags
+
 config = {}
 
 # Loading configuration & parameters
@@ -88,6 +90,9 @@ config['dynamicsOverride'] = {}
 config['useCollisionsConfigurations'] = configGet(
     'useCollisionsConfigurations', True)
 
+# Use Onshape materials as tags for collision objects.
+config['materialTags'] = load_material_tags(configGet('materialTags', []))
+
 # ROS support
 config['packageName'] = configGet('packageName', '')
 config["packageType"] = configGet("packageType", "none")
@@ -152,4 +157,4 @@ if config['simplifySTLs']:
 
 # Checking that versionId and workspaceId are not set on same time
 if config['versionId'] != '' and config['workspaceId'] != '':
-    print(Style.RED + "You can't specify workspaceId AND versionId")
+    print(Fore.RED + "You can't specify workspaceId AND versionId" + Style.RESET_ALL)

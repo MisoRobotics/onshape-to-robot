@@ -1,3 +1,4 @@
+import functools
 import numpy as np
 from copy import copy
 import commentjson as json
@@ -5,10 +6,14 @@ from colorama import Fore, Back, Style
 import re
 import sys
 from sys import exit
+from typing import Any, Dict
 import os
 import hashlib
 from pathlib import Path
+import onshape_client
+from onshape_client.oas.models.bt_part_metadata_info import BTPartMetadataInfo
 from . import csg
+from .material_tags import MaterialTag, get_material_tag
 from .robot_description import RobotURDF, RobotSDF
 from . import ros_package
 
@@ -17,7 +22,6 @@ def main():
     # Loading configuration, collecting occurrences and building robot tree
     from .load_robot import \
         config, client, tree, occurrences, occurrenceNameById, getOccurrence, frames
-
 
     # Creating robot for output
     if config['outputFormat'] == 'urdf':
@@ -43,6 +47,10 @@ def main():
     robot.useFixedLinks = config['useFixedLinks']
     robot.outputDir = Path(config['outputDirectory'])
 
+    use_material_tags = len(config["materialTags"]) > 0
+    robot.use_material_tags = use_material_tags
+
+    material_tags_by_part_id: Dict[str, MaterialTag] = {}
     ignore_regex = [re.compile(pattern) for pattern in config['ignoreRegex']]
 
     def partIsIgnore(name):
@@ -56,6 +64,37 @@ def main():
     def renamePart(name):
         """Remove special characters from part names."""
         return name.replace('"', "in").replace("'", "ft")
+
+    @functools.lru_cache()
+    def _get_parts(
+        did: str, mid: str, eid: str, configuration: str=""
+    ) -> Dict[str, BTPartMetadataInfo]:
+        parts = client._api.onshape_client.parts_api.get_parts_wmve(
+                did, "m", mid, eid, configuration=configuration
+            )
+        return {p.part_id: p for p in parts}
+
+    @functools.lru_cache()
+    def _get_part_by_id(
+        part_id: str,
+        did: str,
+        mid: str,
+        eid: str,
+        configuration: str = "",
+    ) -> BTPartMetadataInfo:
+        # TODO(RWS): Add filter to query parameters to reduce data consumption.
+        parts = _get_parts(did, mid, eid, configuration)
+        return parts[part_id]
+
+    def _get_part_from_dict(part: Dict[str, Any]) -> BTPartMetadataInfo:
+        # This is a convenience function because we can't hash on a dict.
+        return _get_part_by_id(
+            part_id=part["partId"],
+            did=part["documentId"],
+            mid=part["documentMicroversion"],
+            eid=part["elementId"],
+            configuration=part["configuration"],
+        )
 
     def addPart(occurrence, matrix):
         """Add a part to the current robot link."""
@@ -84,6 +123,16 @@ def main():
 
         print(f"{Fore.GREEN}{symbol} Adding part {occurrence['instance']['name']} with parent {occurrenceNameById[occurrence['assignation']]}{extra}{Style.RESET_ALL}")
 
+        material_tag = None
+        if use_material_tags:
+            new_part = _get_part_from_dict(part)
+            material_tag = get_material_tag(new_part, config["materialTags"])
+            if material_tag:
+                material_tags_by_part_id[new_part.part_id] = material_tag
+                print(
+                    f"{Fore.LIGHTMAGENTA_EX}/ Found {material_tag} for part "
+                    f"'{new_part.name}'{Style.RESET_ALL}"
+                )
         if partIsIgnore(justPart):
             stlFile = None
         else:
@@ -162,7 +211,7 @@ def main():
         if robot.relative:
             pose = np.linalg.inv(matrix)*pose
 
-        robot.addPart(pose, stlFile, mass, com, inertia, color, shapes, prefix)
+        robot.addPart(pose, stlFile, material_tag, mass, com, inertia, color, shapes, prefix)
 
 
     partNames = {}
