@@ -8,7 +8,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 from . import stl_combine
-
+from .material_tags import MaterialTag
 
 def rotationMatrixToEulerAngles(R):
     sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
@@ -68,6 +68,7 @@ class RobotDescription(ABC):
         self.packageType: str = ""
         self.addDummyBaseLink: bool = False
         self.output_dir: Optional[Path] = None
+        self.use_material_tags: bool = False
 
     @abstractproperty
     def modelFormat(self) -> str:
@@ -142,7 +143,7 @@ class RobotDescription(ABC):
 
     def resetLink(self):
         self._mesh = {'visual': None, 'collision': None}
-        self._color = np.array([0., 0., 0.])
+        self._color = np.array([0., 0., 0., 0.])
         self._color_mass = 0
         self._link_childs = 0
         self._visuals = []
@@ -285,9 +286,9 @@ class RobotURDF(RobotDescription):
 
     def addDummyBaseLinkMethod(self, name):
         # adds a dummy base_link for ROS users
-        self.append('<link name="base_link"></link>')
-        self.append('<joint name="base_link_to_base" type="fixed">')
-        self.append('<parent link="base_link"/>')
+        self.append('<link name="world"></link>')
+        self.append('<joint name="fixed" type="fixed">')
+        self.append('<parent link="world"/>')
         self.append('<child link="' + name + '" />')
         self.append('<origin rpy="0.0 0 0" xyz="0 0 0"/>')
         self.append('</joint>')
@@ -327,7 +328,7 @@ class RobotURDF(RobotDescription):
                 if node == 'visual' and self._color_mass > 0:
                     color = self._color / self._color_mass
                 else:
-                    color = [0.5, 0.5, 0.5]
+                    color = [0.5, 0.5, 0.5, 1.0]
 
                 filename = self._link_name+'_'+node+'.stl'
                 stl_combine.save_mesh(
@@ -368,12 +369,11 @@ class RobotURDF(RobotDescription):
         self.append('</geometry>')
         if node == "visual":
             self.append('<material name="'+name+'_material">')
-            self.append('<color rgba="%g %g %g 1.0"/>' %
-                        (color[0], color[1], color[2]))
+            self.append('<color rgba="%g %g %g %g"/>' % tuple(color))
             self.append('</material>')
         self.append('</'+node+'>')
 
-    def addPart(self, matrix, stl, mass, com, inertia, color, shapes=None, name=''):
+    def addPart(self, matrix, stl, material_tag: MaterialTag, mass, com, inertia, color, shapes=None, name=''):
         if stl is not None:
             if not self.drawCollisions:
                 if self.useFixedLinks:
@@ -385,11 +385,10 @@ class RobotURDF(RobotDescription):
                     self.addSTL(
                         matrix, os.path.basename(stl), color, name, 'visual')
 
-            entries = ['collision']
-            if self.drawCollisions:
+            entries = ['collision'] if self.use_material_tags and material_tag else []
+            if self.drawCollisions or material_tag.also_visual:
                 entries.append('visual')
             for entry in entries:
-
                 if shapes is None:
                     # We don't have pure shape, we use the mesh
                     if self.shouldMergeSTLs(entry):
@@ -417,8 +416,7 @@ class RobotURDF(RobotDescription):
 
                         if entry == 'visual':
                             self.append('<material name="'+name+'_material">')
-                            self.append('<color rgba="%g %g %g 1.0"/>' %
-                                        (color[0], color[1], color[2]))
+                            self.append('<color rgba="%g %g %g %g"/>' % tuple(color))
                             self.append('</material>')
                         self.append('</'+entry+'>')
 
@@ -552,8 +550,8 @@ class RobotSDF(RobotDescription):
 
     def material(self, color):
         m = '<material>'
-        m += '<ambient>%g %g %g 1</ambient>' % (color[0], color[1], color[2])
-        m += '<diffuse>%g %g %g 1</diffuse>' % (color[0], color[1], color[2])
+        m += '<ambient>%g %g %g %g</ambient>' % tuple(color)
+        m += '<diffuse>%g %g %g %g</diffuse>' % tuple(color)
         m += '<specular>0.1 0.1 0.1 1</specular>'
         m += '<emissive>0 0 0 0</emissive>'
         m += '</material>'
@@ -570,7 +568,7 @@ class RobotSDF(RobotDescription):
             self.append(self.material(color))
         self.append('</'+node+'>')
 
-    def addPart(self, matrix, stl, mass, com, inertia, color, shapes=None, name=''):
+    def addPart(self, matrix, stl, material_tag: MaterialTag, mass, com, inertia, color, shapes=None, name=''):
         name = self._link_name+'_'+str(self._link_childs)+'_'+name
         self._link_childs += 1
 
@@ -588,9 +586,9 @@ class RobotSDF(RobotDescription):
                     self.addSTL(matrix, os.path.basename(
                         stl), color, name, 'visual')
 
-            entries = ['collision']
-            if self.drawCollisions:
-                entries.append('visual')
+            entries = ['collision'] if self.use_material_tags and material_tag else []
+            if self.drawCollisions or material_tag.also_visual:
+                    entries.append('visual')
             for entry in entries:
                 if shapes is None:
                     # We don't have pure shape, we use the mesh
