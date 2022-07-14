@@ -190,6 +190,23 @@ Note: the dynamics of the part will not be ignored, but the visual and collision
 This can be used as the opposed of ``ignore``, to import only some items listed in the configuration
 (all items not listed in ``whitelist`` will be ignored if it is not ``None``)
 
+``materialTags``
+
+*optional, default: []*
+
+Provide a list of MaterialTag objects of the form:
+
+.. code-block:: json
+    [
+        {
+            "materialName": "My Material",
+            "libraryName": "My Material Library",
+            "alsoVisual": true,
+        },
+        ...
+    ]
+
+
 ``color``
 ~~~~~~~~~
 
