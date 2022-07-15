@@ -50,6 +50,8 @@ def main():
     use_material_tags = len(config["materialTags"]) > 0
     robot.use_material_tags = use_material_tags
 
+    material_tags_only = config["materialTagsOnly"]
+
     material_tags_by_part_id: Dict[str, MaterialTag] = {}
     ignore_regex = [re.compile(pattern) for pattern in config['ignoreRegex']]
 
@@ -134,6 +136,8 @@ def main():
                     f"'{new_part.name}'{Style.RESET_ALL}"
                 )
         if partIsIgnore(justPart):
+            stlFile = None
+        elif material_tags_only and not material_tag:
             stlFile = None
         else:
             stlFile = robot.meshDir / (prefix.replace('/', '_') + '.stl')

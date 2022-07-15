@@ -92,6 +92,7 @@ config['useCollisionsConfigurations'] = configGet(
 
 # Use Onshape materials as tags for collision objects.
 config['materialTags'] = load_material_tags(configGet('materialTags', []))
+config['materialTagsOnly'] = configGet('materialTagsOnly', False)
 
 # ROS support
 config['packageName'] = configGet('packageName', '')
