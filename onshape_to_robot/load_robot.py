@@ -163,27 +163,23 @@ FEATURES: FeatureSource = FeatureSource(client._api.onshape_client, root_assembl
 # Build tree.
 edges = set()
 features = root['features']
+trunk = None
 for feature in features:
     if feature['featureType'] == 'mateConnector':
-        name = feature['featureData']['name']
-        if name[0:5] == 'link_':
-            name = name[5:]
-            occurrences[(feature['featureData']['occurrence'][0],)
-                        ]['linkName'] = name
-    else:
-        if feature['suppressed']:
-            continue
+        continue
+    if feature['suppressed']:
+        continue
 
-        data = feature['featureData']
+    data = feature['featureData']
 
-        if 'matedEntities' not in data or len(data['matedEntities']) != 2 or \
-                len(data['matedEntities'][0]['matedOccurrence']) == 0 \
-                or len(data['matedEntities'][1]['matedOccurrence']) == 0:
-            continue
+    if 'matedEntities' not in data or len(data['matedEntities']) != 2 or \
+            len(data['matedEntities'][0]['matedOccurrence']) == 0 \
+            or len(data['matedEntities'][1]['matedOccurrence']) == 0:
+        continue
 
-        node1 = "-".join(occurrenceNameById[data['matedEntities'][0]['matedOccurrence'][0]])
-        node2 = "-".join(occurrenceNameById[data['matedEntities'][1]['matedOccurrence'][0]])
-        edges.add((node1, node2))
+    node1 = "-".join(occurrenceNameById[data['matedEntities'][0]['matedOccurrence'][0]])
+    node2 = "-".join(occurrenceNameById[data['matedEntities'][1]['matedOccurrence'][0]])
+    edges.add((node1, node2))
 
 # Helper function to reroot tree.
 def reRootTree(edges, root):
@@ -254,6 +250,7 @@ for feature in features:
 
         node1 = data['matedEntities'][0]['matedOccurrence'][0]
         node2 = data['matedEntities'][1]['matedOccurrence'][0]
+
 
         node1Name = "-".join(occurrenceNameById[node1])
         node2Name = "-".join(occurrenceNameById[node2])
@@ -362,9 +359,10 @@ for feature in features:
                 'type': jointType,
                 'limits': limits
             }
-
             assignParts(child, child)
             assignParts(parent, parent)
+        else:
+            print(child, parent)
 
 print(Fore.GREEN + Style.BRIGHT + '* Found total ' +
       str(len(relations))+' DOFs' + Style.RESET_ALL)
@@ -427,11 +425,21 @@ while changed:
 
         if data['name'][0:5] == 'frame':
             name = '_'.join(data['name'].split('_')[1:])
+            if parent_id is None:
+                assert False
             appendFrame(parent_id, [name, child_path])
             parent = assignations[parent_id] if config['drawFrames'] else 'frame'
             assignParts(child_root_id, parent)
         else:
-            connectParts(child, assignations[parent])
+            if occurrenceA in assignations:
+                connectParts(occurrenceB, assignations[occurrenceA])
+
+            else:
+                connectParts(occurrenceA, assignations[occurrenceB])
+            # try:
+            #     connectParts(child, assignations[parent])
+            # except:
+            #     import pudb; pudb.set_trace()
 
 # Building and checking robot tree, here we:
 # 1. Search for robot trunk (which will be the top-level link)
