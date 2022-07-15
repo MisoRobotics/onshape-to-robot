@@ -1,7 +1,7 @@
 import dataclasses
 import math
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
 from sys import exit
 from typing import Final
 
@@ -160,6 +160,73 @@ features_init(client, config, root, workspaceId, assemblyId)
 
 FEATURES: FeatureSource = FeatureSource(client._api.onshape_client, root_assembly)
 
+# Build tree.
+edges = set()
+features = root['features']
+for feature in features:
+    if feature['featureType'] == 'mateConnector':
+        name = feature['featureData']['name']
+        if name[0:5] == 'link_':
+            name = name[5:]
+            occurrences[(feature['featureData']['occurrence'][0],)
+                        ]['linkName'] = name
+    else:
+        if feature['suppressed']:
+            continue
+
+        data = feature['featureData']
+
+        if 'matedEntities' not in data or len(data['matedEntities']) != 2 or \
+                len(data['matedEntities'][0]['matedOccurrence']) == 0 \
+                or len(data['matedEntities'][1]['matedOccurrence']) == 0:
+            continue
+
+        node1 = "-".join(occurrenceNameById[data['matedEntities'][0]['matedOccurrence'][0]])
+        node2 = "-".join(occurrenceNameById[data['matedEntities'][1]['matedOccurrence'][0]])
+        edges.add((node1, node2))
+
+# Helper function to reroot tree.
+def reRootTree(edges, root):
+    """Update direction of edges given a specified root using BFS."""
+    # print(f"Initial graph: {edges}")
+    new_edges = set()
+    nodes = set()
+    node_neighbours = defaultdict(list)
+    # Mapping for neighbours (ignoring directionality).
+    for i, j in edges:
+        nodes.add(i)
+        nodes.add(j)
+        node_neighbours[i].append(j)
+        node_neighbours[j].append(i)
+
+    assert root in nodes, "Root not in provided graph."
+    # BFS, along with switching the direction of applicable edges.
+    q = deque([root])
+    seen = set()
+    while q:
+        curr_node = q.popleft()
+        if curr_node in seen:
+            continue
+        seen.add(curr_node)
+
+        for curr_neighbour in node_neighbours[curr_node]:
+            if curr_neighbour not in seen:
+                new_edges.add((curr_neighbour, curr_node))
+                q.append(curr_neighbour)
+    # print(f"Final graph: {new_edges}")
+    return new_edges
+
+# Rerooting tree.
+rootName = "SB Left Tube <2>"
+transformed_edges = reRootTree(edges, rootName)
+
+
+# Mapping where the key is the parent and the value is a list of its children.
+transformed_edges_mapping = defaultdict(list)
+for edge in transformed_edges:
+    transformed_edges_mapping[edge[1]].append(edge[0])
+# print("transformed_edges", transformed_edges)
+
 # First, features are scanned to find the DOFs. Links that they connects are then tagged
 print("\n" + Style.BRIGHT +
       '* Getting assembly features, scanning for DOFs...' + Style.RESET_ALL)
@@ -184,8 +251,21 @@ for feature in features:
                 or len(data['matedEntities'][1]['matedOccurrence']) == 0:
             continue
 
-        child = data['matedEntities'][0]['matedOccurrence'][0]
-        parent = data['matedEntities'][1]['matedOccurrence'][0]
+
+        node1 = data['matedEntities'][0]['matedOccurrence'][0]
+        node2 = data['matedEntities'][1]['matedOccurrence'][0]
+
+        node1Name = "-".join(occurrenceNameById[node1])
+        node2Name = "-".join(occurrenceNameById[node2])
+
+        if node1Name in transformed_edges_mapping[node2Name]:
+            child = node1
+            parent = node2
+        else:
+            if node2Name not in transformed_edges_mapping[node1Name]:
+                raise Exception("Rerooting of tree performed incorrectly.")
+            child = node2
+            parent = node1
 
         if data['name'][0:3] == 'dof':
             parts = data['name'].split('_')
@@ -322,13 +402,21 @@ while changed:
 
         occurrenceA = data['matedEntities'][0]['matedOccurrence'][0]
         occurrenceB = data['matedEntities'][1]['matedOccurrence'][0]
+        occurrenceA_name = "-".join(occurrenceNameById[occurrenceA])
+        occurrenceB_name = "-".join(occurrenceNameById[occurrenceB])
 
-        if occurrenceA in assignations and occurrenceB not in assignations:
-            parent_index, child_index = 0, 1
-        elif occurrenceA not in assignations and occurrenceB in assignations:
-            parent_index, child_index = 1, 0
+        if occurrenceA_name in transformed_edges_mapping[occurrenceB_name]:
+            child = occurrenceA
+            parent = occurrenceB
+            child_index = 0
+            parent_index = 1
         else:
-            continue
+            if occurrenceB_name not in transformed_edges_mapping[occurrenceA_name]:
+                raise Exception("Rerooting of tree performed incorrectly.")
+            child = occurrenceB
+            parent = occurrenceA
+            child_index = 1
+            parent_index = 0
 
         changed = True
 
@@ -343,12 +431,7 @@ while changed:
             parent = assignations[parent_id] if config['drawFrames'] else 'frame'
             assignParts(child_root_id, parent)
         else:
-            if occurrenceA in assignations:
-                connectParts(occurrenceB, assignations[occurrenceA])
-
-            else:
-                connectParts(occurrenceA, assignations[occurrenceB])
-
+            connectParts(child, assignations[parent])
 
 # Building and checking robot tree, here we:
 # 1. Search for robot trunk (which will be the top-level link)
