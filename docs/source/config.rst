@@ -206,6 +206,11 @@ Provide a list of MaterialTag objects of the form:
         ...
     ]
 
+``materialTagsOnly``
+
+*optional, default: false*
+
+If true, ignore all meshes for parts without material tags.
 
 ``color``
 ~~~~~~~~~
