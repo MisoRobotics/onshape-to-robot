@@ -315,9 +315,23 @@ while changed:
 
         data = feature['featureData']
 
+
         if len(data['matedEntities']) != 2 \
                 or len(data['matedEntities'][0]['matedOccurrence']) == 0 \
                 or len(data['matedEntities'][1]['matedOccurrence']) == 0:
+            try:
+                if data['name'].startswith('frame_'):
+                    raise Exception(
+                        f"Found mate relation {data['name']}, but it did not "
+                        "have two mated entities (had "
+                        f"{len(data['matedEntities'])} instead). This can "
+                        "happen if you use Mate Connectors defined in a Part "
+                        "Studio instead of in an assembly. Try adding Mate "
+                        "Connectors to a subassembly or the root assembly "
+                        "and use them in the mate relation."
+                    )
+            except IndexError:
+                pass
             continue
 
         occurrenceA = data['matedEntities'][0]['matedOccurrence'][0]
