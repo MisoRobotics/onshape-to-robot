@@ -200,12 +200,8 @@ assignations = {}
 # manually identified frames
 frames = defaultdict(list)
 
-
-def assignParts(child, parent=None):
-    if parent is None:
-        # TODO(RWS): Don't leak 'frame'; it's currently the only use case.
-        parent = "frame"
-    elif child != parent:
+def assignParts(child, parent, reorder=True):
+    if reorder and child != parent:
         child, parent = order_occurrences(child, parent)
 
     assignations[child] = parent
@@ -289,7 +285,7 @@ for feature in features:
         name = feature["featureData"]["name"]
         if name == "trunk":
             trunk = feature["featureData"]["occurrence"][0]
-            print(f"Found a trunk on part {occurrenceNameById[trunk]}")
+            print(f"Found a trunk on part {occurrenceNameById[trunk][-1]}")
             break
 if trunk is not None:
     transformed_edges, all_nodes = reroot_tree(edges, trunk)
@@ -483,7 +479,7 @@ if len(relations) == 0:
 
 def appendFrame(key, frame):
     child_name = occurrenceNameById[frame[1][-1]]
-    parent_name = occurrenceNameById[key]
+    parent_name = occurrenceNameById[key][0]
     print(f"- Appending {child_name} as frame {frame[0]} to {parent_name}")
     frames[key].append(frame)
 
@@ -511,6 +507,7 @@ for feature in features:
     child, parent = order_occurrences(occurrence_a, occurrence_b)
     assert (child, parent) == order_occurrences(occurrence_b, occurrence_a)
 
+    reorder = True
     if data["name"].startswith("frame_"):
         child_path = occurrenceById[child]["path"]
         # For frames, connect the parentmost entity instead of the child part.
@@ -518,8 +515,9 @@ for feature in features:
         name = data["name"][len("frame_") :]
         appendFrame(parent, [name, child_path])
         # TODO: Revisit - unsure of the functionality here.
-        parent = assignations[parent] if config["drawFrames"] else None
-    connectParts(child, parent)
+        parent = assignations[parent] if config["drawFrames"] else "frame"
+        reorder = False
+    assignParts(child, parent, reorder)
 
 # Building and checking robot tree, here we:
 # 1. Search for robot trunk (which will be the top-level link)
@@ -551,13 +549,13 @@ for occurrence in occurrences.values():
         child = occurrence["path"][0]
         # debugpy.breakpoint()
         # import pudb; pudb.set_trace()
-        connectParts(child, trunk)
+        assignParts(child, trunk, False)
 
 
 def collect(id):
     part = {}
     part["id"] = id
-    part["child?n"] = []
+    part["children"] = []
     for childId in relations:
         entry = relations[childId]
         if entry["parent"] == id:
