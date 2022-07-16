@@ -200,7 +200,9 @@ assignations = {}
 # manually identified frames
 frames = defaultdict(list)
 
+
 def assignParts(child, parent, reorder=True):
+    global assignations
     if reorder and child != parent:
         child, parent = order_occurrences(child, parent)
 
@@ -489,35 +491,56 @@ def appendFrame(key, frame):
 #    to an existing link that was identified before
 # 2. Among those parts, finds the ones that are frames (connected with a frame_* connector)
 
-for feature in features:
-    if feature["featureType"] != "mate" or feature["suppressed"]:
-        continue
+changed = True
+while changed:
+    changed = False
+    for feature in features:
+        if feature["featureType"] != "mate" or feature["suppressed"]:
+            continue
 
-    data = feature["featureData"]
+        data = feature["featureData"]
 
-    if (
-        len(data["matedEntities"]) != 2
-        or len(data["matedEntities"][0]["matedOccurrence"]) == 0
-        or len(data["matedEntities"][1]["matedOccurrence"]) == 0
-    ):
-        continue
+        if (
+            len(data["matedEntities"]) != 2
+            or len(data["matedEntities"][0]["matedOccurrence"]) == 0
+            or len(data["matedEntities"][1]["matedOccurrence"]) == 0
+        ):
+            continue
 
-    occurrence_a = data["matedEntities"][0]["matedOccurrence"][0]
-    occurrence_b = data["matedEntities"][1]["matedOccurrence"][0]
-    child, parent = order_occurrences(occurrence_a, occurrence_b)
-    assert (child, parent) == order_occurrences(occurrence_b, occurrence_a)
+        occurrence_a = data["matedEntities"][0]["matedOccurrence"]
+        occurrence_b = data["matedEntities"][1]["matedOccurrence"]
 
-    reorder = True
-    if data["name"].startswith("frame_"):
-        child_path = occurrenceById[child]["path"]
-        # For frames, connect the parentmost entity instead of the child part.
-        child = child_path[0]
-        name = data["name"][len("frame_") :]
-        appendFrame(parent, [name, child_path])
-        # TODO: Revisit - unsure of the functionality here.
-        parent = assignations[parent] if config["drawFrames"] else "frame"
-        reorder = False
-    assignParts(child, parent, reorder)
+        # Continue if exactly one of them is not true.
+        if (occurrence_a[0] in assignations) == (occurrence_b[0] in assignations):
+            continue
+        changed = True
+
+        child, parent = order_occurrences(occurrence_a[0], occurrence_b[0])
+        assert not isinstance(occurrence_a[0], list)
+        assert (child, parent) == order_occurrences(occurrence_b[0], occurrence_a[0])
+
+        child_path = occurrence_a if occurrence_a[0] == child else occurrence_b
+
+        reorder = True
+        if data["name"].startswith("frame_"):
+            # For frames, connect the parent-most entity instead of the child part.
+            child = child_path[0]
+            name = data["name"][len("frame_") :]
+            appendFrame(assignations[parent], [name, child_path])
+            # TODO: Revisit - unsure of the functionality here.
+            parent = assignations[parent] if config["drawFrames"] else "frame"
+            reorder = False
+        else:
+            try:
+                parent = assignations[parent]
+            except KeyError:
+                temp = child
+                child = parent
+                parent = temp
+                # child, parent = parent, child
+                parent = assignations[parent]
+
+        assignParts(child, parent, reorder=False)
 
 # Building and checking robot tree, here we:
 # 1. Search for robot trunk (which will be the top-level link)
