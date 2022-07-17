@@ -34,6 +34,7 @@ setuptools.setup(
         "Cython",
         "dataclasses; python_version < '3.7'",
         "dataclasses_json",
+        "easy_dict",
         "jinja2",
         "numpy",
         "numpy-stl",

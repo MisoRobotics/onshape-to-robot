@@ -1,161 +1,191 @@
-from sys import exit
-import sys
+"""Load configuration from config.json."""
+from __future__ import annotations
+
+import dataclasses
 import os
+import sys
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
 import commentjson as json
-from colorama import Fore, Back, Style
+from colorama import Fore, Style
+from easydict import EasyDict
 
 from .material_tags import load_material_tags
 
-config = {}
 
-# Loading configuration & parameters
-if len(sys.argv) <= 1:
-    print(Fore.RED +
-          'ERROR: usage: onshape-to-robot {robot_directory}' + Style.RESET_ALL)
-    print("Read documentation at https://onshape-to-robot.readthedocs.io/")
-    exit("")
-robot = sys.argv[1]
+def load_config(path: Optional[Union[Path, str]] = None) -> EasyDict[str, Any]:
+    """Load configuration from the specified path or args."""
+    return Config.from_path(Path(path)) if path else Config.from_argv()
 
 
-def configGet(name, default=None, hasDefault=False, valuesList=None):
-    global config
-    hasDefault = hasDefault or (default is not None)
+@dataclasses.dataclass()
+class Config:
+    """Load configuration from a config.json and parse it."""
 
-    if name in config:
-        value = config[name]
-        if valuesList is not None and value not in valuesList:
-            print(Fore.RED+"ERROR: Value for "+name +
-                  " should be one of: "+(','.join(valuesList))+Style.RESET_ALL)
-            exit()
-        return value
-    else:
-        if hasDefault:
-            return default
+    params: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def get(self, name, default=None, hasDefault=False, valuesList=None):
+        """Get a value from the config with defaults."""
+        hasDefault = hasDefault or (default is not None)
+
+        if name in self.params:
+            value = self.params[name]
+            if valuesList is not None and value not in valuesList:
+                print(Fore.RED+"ERROR: Value for "+name +
+                    " should be one of: "+(','.join(valuesList))+Style.RESET_ALL)
+                sys.exit(1)
+            return value
         else:
-            print(Fore.RED + 'ERROR: missing key "' +
-                  name+'" in config' + Style.RESET_ALL)
-            exit()
+            if hasDefault:
+                return default
+            else:
+                print(Fore.RED + 'ERROR: missing key "' +
+                    name+'" in config' + Style.RESET_ALL)
+                sys.exit(1)
 
+    @classmethod
+    def from_argv(cls) -> EasyDict[str, Any]:
+        """Load config with the path specified in argv."""
+        if len(sys.argv) <= 1:
+            print(Fore.RED +
+                'ERROR: usage: onshape-to-robot {robot_directory}' + Style.RESET_ALL)
+            print("Read documentation at https://onshape-to-robot.readthedocs.io/")
+            sys.exit(1)
+        return cls.from_path(path=sys.argv[1])
 
-configFile = robot+'/config.json'
-if not os.path.exists(configFile):
-    print(Fore.RED+"ERROR: The file "+configFile+" can't be found"+Style.RESET_ALL)
-    exit()
-with open(configFile, "r", encoding="utf8") as stream:
-    config = json.load(stream)
+    @classmethod
+    def from_path(cls, path) -> EasyDict[str, Any]:
+        """Load configuration from the specified path."""
+        path = Path(path)
+        config_path = path / "config.json"
 
-config['documentsUrl'] = configGet('documentsUrl', '')
-config['documentId'] = configGet('documentId', '')
-config['versionId'] = configGet('versionId', '')
-config['workspaceId'] = configGet('workspaceId', '')
-config['drawFrames'] = configGet('drawFrames', False)
-config['drawCollisions'] = configGet('drawCollisions', False)
-config['assemblyName'] = configGet('assemblyName', False)
-config['outputFormat'] = configGet('outputFormat', 'urdf')
-config['useFixedLinks'] = configGet('useFixedLinks', False)
-config['configuration'] = configGet('configuration', 'default')
-config['ignoreLimits'] = configGet('ignoreLimits', False)
+        if not os.path.exists(config_path):
+            print(f"{Fore.RED}ERROR: Config file {config_path} not found.{Style.RESET_ALL}")
+            sys.exit(1)
+        with open(config_path, "r", encoding="utf8") as stream:
+            loaded_config = Config(json.load(stream))
 
-# Using OpenSCAD for simplified geometry
-config['useScads'] = configGet('useScads', True)
-config['pureShapeDilatation'] = configGet('pureShapeDilatation', 0.0)
+        settings = [
+            ("documentsUrl", ''),
+            ("documentId", ''),
+            ("versionId", ''),
+            ("workspaceId", ''),
+            ("drawFrames", False),
+            ("drawCollisions", False),
+            ("assemblyName", False),
+            ("outputFormat", 'urdf'),
+            ("useFixedLinks", False),
+            ("configuration", 'default'),
+            ("ignoreLimits", False),
 
-# Dynamics
-config['jointMaxEffort'] = configGet('jointMaxEffort', 1)
-config['jointMaxVelocity'] = configGet('jointMaxVelocity', 20)
-config['noDynamics'] = configGet('noDynamics', False)
+            # Using OpenSCAD for simplified geometry
+            ("useScads", True),
+            ("pureShapeDilatation", 0.0),
 
-# Ignore list
-config['ignore'] = configGet('ignore', [])
-config['ignoreRegex'] = configGet('ignoreRegex', [])
-config['whitelist'] = configGet('whitelist', None, hasDefault=True)
+            # Dynamics
+            ("jointMaxEffort", 1),
+            ("jointMaxVelocity", 20),
+            ("noDynamics", False),
 
-# Color override
-config['color'] = configGet('color', None, hasDefault=True)
+            # Ignore list
+            ("ignore", []),
+            ("ignoreRegex", []),
+            ("whitelist", None, True),
 
-# STLs merge and simplification
-config['mergeSTLs'] = configGet('mergeSTLs', 'no', valuesList=[
-                                'no', 'visual', 'collision', 'all'])
-config['maxSTLSize'] = configGet('maxSTLSize', 3)
-config['simplifySTLs'] = configGet('simplifySTLs', 'no', valuesList=[
-                                   'no', 'visual', 'collision', 'all'])
+            # Color override
+            ("color", None, True),
 
-# Post-import commands to execute
-config['postImportCommands'] = configGet('postImportCommands', [])
+            # STLs merge and simplification
+            ("mergeSTLs", 'no', False, ['no', 'visual', 'collision', 'all']),
+            ("maxSTLSize", 3),
+            ("simplifySTLs", 'no', False, ['no', 'visual', 'collision', 'all']),
 
-config['outputDirectory'] = robot
-config['dynamicsOverride'] = {}
+            # Post-import commands to execute
+            ("postImportCommands", []),
 
-# Add collisions=true configuration on parts
-config['useCollisionsConfigurations'] = configGet(
-    'useCollisionsConfigurations', True)
+            # Add collisions=true configuration on parts
+            ("useCollisionsConfigurations", True),
 
-# Use Onshape materials as tags for collision objects.
-config['materialTags'] = load_material_tags(configGet('materialTags', []))
-config['materialTagsOnly'] = configGet('materialTagsOnly', False)
+            # Use Onshape materials as tags for collision objects.
+            ("materialTagsOnly", False),
 
-# ROS support
-config['packageName'] = configGet('packageName', '')
-config["packageType"] = configGet("packageType", "none")
-ALLOWED_PACKAGE_TYPES = {"none", "ament", "catkin"}
-if config["packageType"] not in ALLOWED_PACKAGE_TYPES:
-    raise ValueError(
-        "packageType '{}' must be one of: {}".format(
-            config["packageType"], list(ALLOWED_PACKAGE_TYPES)
-        )
-    )
-config['addDummyBaseLink'] = configGet('addDummyBaseLink', False)
-config['robotName'] = configGet('robotName', 'onshape')
+            # ROS support
+            ("packageName", ''),
+            ("packageType", "none"),
 
-# additional XML code to insert
-if config['outputFormat'] == 'urdf':
-    additionalFileName = configGet('additionalUrdfFile', '')
-else:
-    additionalFileName = configGet('additionalSdfFile', '')
+            ('addDummyBaseLink', False),
+            ('robotName', 'onshape'),
+        ]
 
-if additionalFileName == '':
-    config['additionalXML'] = ''
-else:
-    with open(robot + additionalFileName, "r", encoding="utf-8") as stream:
-        config['additionalXML'] = stream.read()
+        params = {args[0]: loaded_config.get(*args) for args in settings}
 
+        params['materialTags'] = load_material_tags(
+            loaded_config.get('materialTags', [])
+            )
+        params['outputDirectory'] = path
+        params['configPath'] = config_path
+        params['dynamicsOverride'] = {}
 
-# Creating dynamics override array
-tmp = configGet('dynamics', {})
-for key in tmp:
-    if tmp[key] == 'fixed':
-        config['dynamicsOverride'][key.lower()] = {"com": [0, 0, 0], "mass": 0, "inertia": [
-            0, 0, 0, 0, 0, 0, 0, 0, 0]}
-    else:
-        config['dynamicsOverride'][key.lower()] = tmp[key]
+        # additional XML code to insert
+        if params['outputFormat'] == 'urdf':
+            additional_file_name = loaded_config.get('additionalUrdfFile', '')
+        else:
+            additional_file_name = loaded_config.get('additionalSdfFile', '')
 
-# Output directory, making it if it doesn't exists
-try:
-    os.makedirs(config['outputDirectory'])
-except OSError:
-    pass
+        if additional_file_name == '':
+            params['additionalXML'] = ''
+        else:
+            with open(path / additional_file_name, "r", encoding="utf-8") as stream:
+                params['additionalXML'] = stream.read()
 
-# Checking that OpenSCAD is present
-if config['useScads']:
-    print(Style.BRIGHT + '* Checking OpenSCAD presence...' + Style.RESET_ALL)
-    if os.system('openscad -v 2> /dev/null') != 0:
-        print(
-            Fore.RED + "Can't run openscad -v, disabling OpenSCAD support" + Style.RESET_ALL)
-        print(Fore.BLUE + "TIP: consider installing openscad:" + Style.RESET_ALL)
-        print(Fore.BLUE + "sudo add-apt-repository ppa:openscad/releases" + Style.RESET_ALL)
-        print(Fore.BLUE + "sudo apt-get update" + Style.RESET_ALL)
-        print(Fore.BLUE + "sudo apt-get install openscad" + Style.RESET_ALL)
-        config['useScads'] = False
+        # Creating dynamics override array
+        tmp = loaded_config.get('dynamics', {})
+        for key in tmp:
+            if tmp[key] == 'fixed':
+                params['dynamicsOverride'][key.lower()] = {"com": [0, 0, 0], "mass": 0, "inertia": [
+                    0, 0, 0, 0, 0, 0, 0, 0, 0]}
+            else:
+                params['dynamicsOverride'][key.lower()] = tmp[key]
 
-# Checking that MeshLab is present
-if config['simplifySTLs']:
-    print(Style.BRIGHT + '* Checking MeshLab presence...' + Style.RESET_ALL)
-    if not os.path.exists('/usr/bin/meshlabserver') != 0:
-        print(Fore.RED + "No /usr/bin/meshlabserver, disabling STL simplification support" + Style.RESET_ALL)
-        print(Fore.BLUE + "TIP: consider installing meshlab:" + Style.RESET_ALL)
-        print(Fore.BLUE + "sudo apt-get install meshlab" + Style.RESET_ALL)
-        config['simplifySTLs'] = False
+        # Output directory, making it if it doesn't exists
+        try:
+            os.makedirs(params['outputDirectory'])
+        except OSError:
+            pass
 
-# Checking that versionId and workspaceId are not set on same time
-if config['versionId'] != '' and config['workspaceId'] != '':
-    print(Fore.RED + "You can't specify workspaceId AND versionId" + Style.RESET_ALL)
+        # Validation
+        ALLOWED_PACKAGE_TYPES = {"none", "ament", "catkin"}
+        if params["packageType"] not in ALLOWED_PACKAGE_TYPES:
+            raise ValueError(
+                "packageType '{}' must be one of: {}".format(
+                    params["packageType"], list(ALLOWED_PACKAGE_TYPES)
+                )
+            )
+
+        # Checking that OpenSCAD is present
+        if params['useScads']:
+            print(Style.BRIGHT + '* Checking OpenSCAD presence...' + Style.RESET_ALL)
+            if os.system('openscad -v 2> /dev/null') != 0:
+                print(
+                    Fore.RED + "Can't run openscad -v, disabling OpenSCAD support" + Style.RESET_ALL)
+                print(Fore.BLUE + "TIP: consider installing openscad:" + Style.RESET_ALL)
+                print(Fore.BLUE + "sudo add-apt-repository ppa:openscad/releases" + Style.RESET_ALL)
+                print(Fore.BLUE + "sudo apt-get update" + Style.RESET_ALL)
+                print(Fore.BLUE + "sudo apt-get install openscad" + Style.RESET_ALL)
+                params['useScads'] = False
+
+        # Checking that MeshLab is present
+        if params['simplifySTLs']:
+            print(Style.BRIGHT + '* Checking MeshLab presence...' + Style.RESET_ALL)
+            if not os.path.exists('/usr/bin/meshlabserver') != 0:
+                print(Fore.RED + "No /usr/bin/meshlabserver, disabling STL simplification support" + Style.RESET_ALL)
+                print(Fore.BLUE + "TIP: consider installing meshlab:" + Style.RESET_ALL)
+                print(Fore.BLUE + "sudo apt-get install meshlab" + Style.RESET_ALL)
+                params['simplifySTLs'] = False
+
+        # Checking that versionId and workspaceId are not set on same time
+        if params['versionId'] != '' and params['workspaceId'] != '':
+            print(Fore.RED + "You can't specify workspaceId AND versionId" + Style.RESET_ALL)
+
+        return EasyDict(params)
