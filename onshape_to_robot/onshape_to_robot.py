@@ -160,7 +160,7 @@ def main():
         shapes = None
         if config['useScads']:
             scadFile = prefix+'.scad'
-            if os.path.exists(config['outputDirectory']+'/'+scadFile):
+            if os.path.exists(config['outputDirectory'] / scadFile):
                 shapes = csg.process(
                     config['outputDirectory']+'/'+scadFile, config['pureShapeDilatation'])
 
@@ -258,6 +258,9 @@ def main():
         instance = occurrence['instance']
         print(Fore.BLUE + Style.BRIGHT +
             '* Adding top-level instance ['+instance['name']+']' + Style.RESET_ALL)
+
+        # Find the link name, which could be on a child.
+
 
         # Build a part name that is unique but still informative
         link = processPartName(
