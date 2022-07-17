@@ -1,27 +1,28 @@
 import functools
-import numpy as np
-from copy import copy
-import commentjson as json
-from colorama import Fore, Back, Style
+import hashlib
+import os
 import re
 import sys
+from copy import copy
+from pathlib import Path
 from sys import exit
 from typing import Any, Dict
-import os
-import hashlib
-from pathlib import Path
+
+import commentjson as json
+import numpy as np
 import onshape_client
+from colorama import Back, Fore, Style
 from onshape_client.oas.models.bt_part_metadata_info import BTPartMetadataInfo
-from . import csg
+
+from . import csg, ros_package
 from .material_tags import MaterialTag, get_material_tag
-from .robot_description import RobotURDF, RobotSDF
-from . import ros_package
+from .robot_description import RobotSDF, RobotURDF
 
 
 def main():
     # Loading configuration, collecting occurrences and building robot tree
-    from .load_robot import \
-        config, client, tree, occurrences, occurrenceNameById, getOccurrence, frames
+    from .load_robot import (client, config, frames, getOccurrence,
+                             occurrenceNameById, occurrences, tree)
 
     # Creating robot for output
     if config['outputFormat'] == 'urdf':
@@ -123,7 +124,12 @@ def main():
             symbol = '-'
             extra += Style.DIM + ' / ignoring visual and collision'
 
-        print(f"{Fore.GREEN}{symbol} Adding part {occurrence['instance']['name']} with parent {occurrenceNameById[occurrence['assignation']]}{extra}{Style.RESET_ALL}")
+        print(
+            f"{Fore.GREEN}{symbol} Adding part "
+            f"{occurrence['instance']['name']} with parent "
+            f"{occurrenceNameById[occurrence['assignation']][0]}"
+            f"{extra}{Style.RESET_ALL}"
+        )
 
         material_tag = None
         if use_material_tags:
@@ -253,7 +259,7 @@ def main():
 
 
     def buildRobot(tree, matrix):
-        print(f"> Building robot for tree {occurrenceNameById[tree['id']]} ...")
+        print(f"> Building robot for tree {occurrenceNameById[tree['id']][0]} ...")
         occurrence = getOccurrence([tree['id']])
         instance = occurrence['instance']
         print(Fore.BLUE + Style.BRIGHT +
@@ -280,7 +286,10 @@ def main():
                 if robot.relative:
                     frame = np.linalg.inv(matrix)*frame
                 robot.addFrame(name, frame)
-        print(f"Tree {occurrenceNameById[tree['id']]} has children: {[occurrenceNameById[c['id']] for c in tree['children']]}")
+        print(
+            f"Tree {occurrenceNameById[tree['id']][0]} has children: "
+            f"{[occurrenceNameById[c['id']][0] for c in tree['children']]}"
+        )
 
         # Following the children in the tree, calling this function recursively
         k = 0
@@ -311,8 +320,9 @@ def main():
     robot.finalize()
     # print(tree)
 
-    print("\n" + Style.BRIGHT + "* Writing " +
-        robot.modelFormat.upper()+" file" + Style.RESET_ALL)
+    print(
+        f"\n{Style.BRIGHT}* Writing {robot.modelFormat.upper()} file{Style.RESET_ALL}"
+    )
     output_directory = Path(config["outputDirectory"])
     output_directory.mkdir(parents=True, exist_ok=True)
     if robot.createRosPackage:
@@ -327,9 +337,9 @@ def main():
 
 
     if len(config['postImportCommands']):
-        print("\n" + Style.BRIGHT + "* Executing post-import commands" + Style.RESET_ALL)
+        print(f"\n{Style.BRIGHT}* Executing post-import commands{Style.RESET_ALL}")
         for command in config['postImportCommands']:
-            print("* "+command)
+            print(f"* {command}")
             os.system(command)
 
 
