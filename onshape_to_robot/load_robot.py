@@ -1,88 +1,55 @@
 import dataclasses
 import math
+import sys
 import uuid
 from collections import defaultdict
-from sys import exit
 from typing import Final
 
 import numpy as np
 from colorama import Back, Fore, Style
 from onshape_client import OnshapeElement
 
-from .config import config, configFile
+from onshape_to_robot.config import load_config
+
 from .onshape_api.client import Client, get_assembly_from_url
+
+config = load_config(".")
+configFile = config.configPath
 
 # OnShape API client
 workspaceId = None
 client = Client(logging=False, creds=configFile)
 client.useCollisionsConfigurations = config['useCollisionsConfigurations']
 
-if config['documentsUrl']:
-    print(f"\n{Style.BRIGHT}* Using Documents API URL {config['documentsUrl']}...{Style.RESET_ALL}")
-    root_assembly: Final[OnshapeElement] = OnshapeElement(config["documentsUrl"])
-
-    source = get_assembly_from_url(config['documentsUrl'])
-    assembly = client.get_assembly(
-        source['did'], source['wid'], source['eid'], source['type'],
-        configuration=config['configuration'])
-    config["documentId"] = source['did']
-    if source["type"] == 'v':
-        config["versionId"] = source['wid']
-    else:
-        config["workspaceId"] = source['wid']
-else:
-    assembly = None
+if not config["documentsUrl"]:
     raise Exception("Only documentsUrl is supported.")
 
-# If a versionId is provided, it will be used, else the main workspace is retrieved
-if config['versionId'] != '':
-    print("\n" + Style.BRIGHT + '* Using configuration version ID ' +
-          config['versionId']+' ...' + Style.RESET_ALL)
-elif config['workspaceId'] != '':
-    print("\n" + Style.BRIGHT + '* Using configuration workspace ID ' +
-          config['workspaceId']+' ...' + Style.RESET_ALL)
-    workspaceId = config['workspaceId']
-else:
-    print("\n" + Style.BRIGHT + '* Retrieving workspace ID ...' + Style.RESET_ALL)
-    response = client.get_document(config['documentId']).json()
-    workspaceId = response['defaultWorkspace']['id']
-    config["workspaceId"] = workspaceId
-    print(Fore.GREEN + "+ Using workspace id: " + workspaceId + Style.RESET_ALL)
-
-# Now, finding the assembly, according to given name in configuration, or else the first possible one
-print("\n" + Style.BRIGHT +
-      '* Retrieving elements in the document, searching for the assembly...' + Style.RESET_ALL)
-if config['versionId'] != '':
-    elements = client.list_elements(
-        config['documentId'], config['versionId'], 'v').json()
-else:
-    elements = client.list_elements(config['documentId'], workspaceId).json()
-assemblyId = None
-assemblyName = ''
-for element in elements:
-    if element['type'] == 'Assembly' and \
-            (config['assemblyName'] is False or element['name'] == config['assemblyName']):
-        print(Fore.GREEN + "+ Found assembly, id: " +
-              element['id']+', name: "'+element['name']+'"' + Style.RESET_ALL)
-        assemblyName = element['name']
-        assemblyId = element['id']
-
-if assemblyId == None:
-    print(Fore.RED + "ERROR: Unable to find assembly in this document" + Style.RESET_ALL)
-    exit(1)
-
-# Retrieving the assembly
-print(f"\n{Style.BRIGHT}* Retrieving assembly {root_assembly.name}...{Style.RESET_ALL}")
-assembly = assembly or client.get_assembly(
-    root_assembly.did, root_assembly.wvmid, root_assembly.eid, root_assembly.wvm, configuration=config['configuration']
+print(
+    f"\n{Style.BRIGHT}* Using Onshape Documents API URL "
+    f"{config['documentsUrl']}{Style.RESET_ALL}"
 )
+element: Final[OnshapeElement] = OnshapeElement(config["documentsUrl"])
+assembly = client.get_assembly(
+    element.did,
+    element.wvmid,
+    element.eid,
+    element.wvm,
+    configuration=config["configuration"],
+)
+config["documentId"] = element.did
+if element.wvm == "v":
+    config["versionId"] = element.wvmid
+else:
+    config["workspaceId"] = element.wvmid
 
-root = assembly['rootAssembly']
+root = assembly["rootAssembly"]
+assemblyName = element.name
+assemblyId = element.eid
+
+print(f"\n{Style.BRIGHT}* Retrieved assembly '{assemblyName}'.{Style.RESET_ALL}")
 
 # Finds a (leaf) instance given the full path, typically A B C where A and B would be subassemblies and C
 # the final part
-
-
 def findInstance(path, instances=None):
     global assembly
 
@@ -124,10 +91,17 @@ occurrenceNameById = {
     for o in occurrences.values()
 }
 
-# Gets an occurrence given its full path
+from onshape_to_robot.features import FeatureSource
+from onshape_to_robot.features import init as features_init
 
+features_init(client, config, root, workspaceId, assemblyId)
+
+FEATURES: FeatureSource = FeatureSource(client._api.onshape_client, element)
 
 def getOccurrence(path):
+    """Get an occurrence from its full path."""
+    if isinstance(path, str):
+        path = (path,)
     return occurrences[tuple(path)]
 
 
@@ -148,31 +122,27 @@ def assignParts(root, parent):
         if occurrence['path'][0] == root:
             occurrence['assignation'] = parent
 
-
 def connectParts(child, parent):
     assignParts(child, parent)
 
 
-from .features import FeatureSource
-from .features import init as features_init
-
-features_init(client, config, root, workspaceId, assemblyId)
-
-FEATURES: FeatureSource = FeatureSource(client._api.onshape_client, root_assembly)
-
-# First, features are scanned to find the DOFs. Links that they connects are then tagged
-print("\n" + Style.BRIGHT +
-      '* Getting assembly features, scanning for DOFs...' + Style.RESET_ALL)
+# Scan mates and mate connectors for specific names.
+print(f"\n{Style.BRIGHT}Parsing tags from assembly...{Style.RESET_ALL}")
 trunk = None
 relations = {}
+links = {}
 features = root['features']
 for feature in features:
     if feature['featureType'] == 'mateConnector':
         name = feature['featureData']['name']
-        if name[0:5] == 'link_':
-            name = name[5:]
-            occurrences[(feature['featureData']['occurrence'][0],)
-                        ]['linkName'] = name
+        path = (feature['featureData']['occurrence'][0],)
+        if name.startswith('link_'):
+            name = name[len('link_'):]
+            occurrences[path]['linkName'] = name
+            links[name] = path
+            print(f"{Fore.GREEN}+ Found link: {name}{Style.RESET_ALL}")
+        elif name == 'trunk':
+            tagged_trunk = path[0]
     else:
         if feature['suppressed']:
             continue
@@ -203,7 +173,6 @@ for feature in features:
             limits = None
             if data['mateType'] == 'REVOLUTE' or data['mateType'] == 'CYLINDRICAL':
                 jointType = 'revolute'
-
                 if not config['ignoreLimits']:
                     limits = FEATURES.get_limits(data['name'])
             elif data['mateType'] == 'SLIDER':
@@ -286,21 +255,25 @@ for feature in features:
             assignParts(child, child)
             assignParts(parent, parent)
 
-print(Fore.GREEN + Style.BRIGHT + '* Found total ' +
-      str(len(relations))+' DOFs' + Style.RESET_ALL)
+if tagged_trunk:
+    trunk_name = getOccurrence([tagged_trunk])['linkName']
+    print(f"{Fore.GREEN}+ Found trunk on link: {trunk_name}{Style.RESET_ALL}")
+
+print(
+    f"{Fore.GREEN}{Style.BRIGHT}* Found {len(relations)} named dofs(s) and "
+    f"{len(links)} named link(s).{Style.RESET_ALL}" )
 
 # If we have no DOF
 if len(relations) == 0:
-    trunk = root['instances'][0]['id']
+    trunk = trunk or root['instances'][0]['id']
     assignParts(trunk, trunk)
 
 
 def appendFrame(key, frame):
-    child_name = occurrenceNameById[frame[1][-1]]
-    parent_name = occurrenceNameById[key]
+    child_name = occurrenceNameById[frame[1][-1]][0]
+    parent_name = occurrenceNameById[key][0]
     print(f"- Appending {child_name} as frame {frame[0]} to {parent_name}")
     frames[key].append(frame)
-
 
 # Spreading parts assignations, this parts mainly does two things:
 # 1. Finds the parts of the top level assembly that are not directly in a sub assembly and try to assign them
@@ -314,7 +287,6 @@ while changed:
             continue
 
         data = feature['featureData']
-
 
         if len(data['matedEntities']) != 2 \
                 or len(data['matedEntities'][0]['matedOccurrence']) == 0 \
@@ -371,11 +343,33 @@ while changed:
 # 3. Collect all the pieces of the robot tree
 print("\n" + Style.BRIGHT + '* Building robot tree' + Style.RESET_ALL)
 
+possible_trunks = []
 for childId in relations:
     entry = relations[childId]
     if entry['parent'] not in relations:
-        trunk = entry['parent']
-        break
+        possible_trunks += [entry['parent']]
+
+print(f"Found {len(possible_trunks)} possible trunks.")
+trunk = possible_trunks[0]
+print(f"Selected trunk: '{occurrenceNameById[trunk][0]}'")
+
+# Go through each occurrence and bubble up link name.
+for child, root in assignations.items():
+    try:
+        root_occurrence = getOccurrence(root)
+    except KeyError:
+        continue
+    child_name = getOccurrence(child)["linkName"]
+    root_name = root_occurrence["linkName"]
+    if child_name:
+        if root_name and root_name != child_name:
+            raise ValueError(
+                f"Found link tag '{child_name}' on child, but root "
+                f"already had tag '{root_name}'."
+            )
+        root_occurrence['linkName'] = child_name
+        print(f"Renamed {occurrenceNameById[root][0]} to '{child_name}'.")
+
 trunkOccurrence = getOccurrence([trunk])
 print(Style.BRIGHT + '* Trunk is ' +
       trunkOccurrence['instance']['name'] + Style.RESET_ALL)
