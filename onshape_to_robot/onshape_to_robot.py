@@ -331,6 +331,7 @@ def main():
             robot.packageType,
             robot.robotName,
             robot.modelFormat,
+            robot.gazebo_materials,
             output_directory
         )
     robot.write(robot.modelFilePath)

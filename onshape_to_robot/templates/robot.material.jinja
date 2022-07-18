@@ -1,0 +1,31 @@
+{% for material, color in gazebo_materials.items() -%}
+material {{ model_name }}/{{ material }}
+{
+  technique
+  {
+    {%- if color[3] > 0.99 %}
+    pass ambient
+    {
+      ambient {{ color[0] }} {{ color[1] }} {{ color[2] }} {{ color[3] }}
+      diffuse {{ color[0] }} {{ color[1] }} {{ color[2] }} {{ color[3] }}
+      specular 0.1 0.1 0.1 1 1
+    }
+    {%- else %}
+    pass
+    {
+      scene_blend alpha_blend
+      depth_write off
+
+      ambient {{ color[0] }} {{ color[1] }} {{ color[2] }} {{ color[3] }}
+      diffuse {{ color[0] }} {{ color[1] }} {{ color[2] }} {{ color[3] }}
+
+      texture_unit
+      {
+        colour_op_ex source1 src_current src_current {{ color[0] }} {{ color[1] }} {{ color[2] }}
+        alpha_op_ex source1 src_manual src_current {{ color[3] }}
+      }
+    }
+    {%- endif %}
+  }
+}
+{% endfor %}

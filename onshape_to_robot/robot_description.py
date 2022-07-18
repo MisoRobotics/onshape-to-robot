@@ -1,14 +1,26 @@
-from abc import ABC, abstractmethod, abstractproperty
-import numpy as np
-import os
 import math
-from typing import Optional
-
+import os
+from abc import ABC, abstractmethod, abstractproperty
 from pathlib import Path
-from xml.etree import ElementTree
+from typing import List, Optional
+
+import numpy as np
+from lxml import etree
 
 from . import stl_combine
 from .material_tags import MaterialTag
+
+XML_ENCODING = "unicode"
+XML_INDENT = " " * 2
+_INERTIA_ENTRIES = (
+    ("ixx", (0, 0)),
+    ("ixy", (0, 1)),
+    ("ixz", (0, 2)),
+    ("iyy", (1, 1)),
+    ("iyz", (1, 2)),
+    ("izz", (2, 2)),
+)
+
 
 def rotationMatrixToEulerAngles(R):
     sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
@@ -25,6 +37,13 @@ def rotationMatrixToEulerAngles(R):
         z = 0
 
     return np.array([x, y, z])
+
+
+def xml_to_string(element: etree._Element) -> str:
+    """Convert an XML element to a string."""
+    etree.indent(element, space="  ")
+    return etree.tostring(element, pretty_print=True, encoding=XML_ENCODING).strip()
+
 
 
 def origin(matrix):
@@ -49,6 +68,15 @@ def pose(matrix, frame=''):
 
     return sdf % (x, y, z, rpy[0], rpy[1], rpy[2])
 
+
+def gazebo_fixed_joints(name: str) -> str:
+    """Preserve fixed joints in Gazebo instead of merging them."""
+    gazebo = etree.Element("gazebo", reference=name)
+    etree.SubElement(gazebo, "preserveFixedJoint").text = "true"
+    etree.SubElement(gazebo, "disabledFixedJointLumping").text = "true"
+    return xml_to_string(gazebo)
+
+
 class RobotDescription(ABC):
 
     def __init__(self, robotName: str) -> None:
@@ -69,6 +97,7 @@ class RobotDescription(ABC):
         self.addDummyBaseLink: bool = False
         self.output_dir: Optional[Path] = None
         self.use_material_tags: bool = False
+        self.gazebo_materials = {}
 
     @abstractproperty
     def modelFormat(self) -> str:
@@ -148,6 +177,22 @@ class RobotDescription(ABC):
         self._link_childs = 0
         self._visuals = []
         self._dynamics = []
+
+    @abstractmethod
+    def append_inertial(
+        self,
+        mass: float = None,
+        com: Optional[List[float]] = None,
+        inertia: Optional[List[List[float]]]= None,
+        frame: Optional[str] = None,
+    ) -> None:
+        """Append an <inertial> element."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def append_material(self, name: str, color: List[float]) -> None:
+        """Append a <material> element."""
+        raise NotImplementedError()
 
     def addLinkDynamics(self, matrix, mass, com, inertia):
         # Inertia
@@ -269,28 +314,53 @@ class RobotURDF(RobotDescription):
         """Return the output filename for the model."""
         return self.modelDir / "robot.urdf"
 
+    def append_inertial(
+        self,
+        mass: float,
+        com: Optional[List[float]] = None,
+        inertia: Optional[np.ndarray]= None,
+        frame: Optional[str] = None,
+    ) -> None:
+        """Append an <inertial> element."""
+        inertial = etree.Element("inertial")
+        if com is not None:
+            xyz = f"{com[0]:.5f} {com[1]:.5f} {com[2]:.5f}"
+            origin = etree.SubElement(inertial, "origin", xyz=xyz)
+        etree.SubElement(inertial, "mass", value=f"{mass:.5f}")
+        if inertia is None:
+            inertia = np.zeros((3, 3))
+        kwargs = {e: f"{inertia[r, c]:.5f}" for e, (r, c) in _INERTIA_ENTRIES}
+        etree.SubElement(inertial, "inertia", **kwargs)
+        self.append(xml_to_string(inertial))
+
+    def append_material(self, name: str, color: List[float]) -> None:
+        """Append a <material> element."""
+        material = etree.Element("material", name=f"{name}_material")
+        rgba = " ".join([f"{c:.3f}" for c in color])
+        etree.SubElement(material, "color", rgba=rgba)
+        script = etree.SubElement(material, "script")
+        etree.SubElement(script, "name").text = f"{self.robotName}/{name}"
+        if name in self.gazebo_materials:
+            print(f"Material name {name} already exists.")
+        self.gazebo_materials[name] = color
+        self.append(xml_to_string(material))
+
     def addDummyLink(self, name, visualMatrix=None, visualSTL=None, visualColor=None):
-        self.append('<link name="'+name+'">')
-        self.append('  <inertial>')
-        # XXX: We use a low mass because PyBullet consider mass 0 as world fixed
-        if self.noDynamics:
-            self.append('    <mass value="0" />')
-        else:
-            self.append('    <mass value="1e-4" />')
-        self.append('    <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />')
-        self.append(  '</inertial>')
+        self.append(f'<link name="{name}">')
+        mass = 0 if self.noDynamics else 1e-4
+        self.append_inertial(mass)
         if visualSTL is not None:
-            self.addSTL(visualMatrix, visualSTL, visualColor,
-                        name+"_visual", 'visual')
+            self.addSTL(
+                visualMatrix, visualSTL, visualColor, f"{name}_visual", "visual"
+            )
         self.append('</link>')
 
     def addDummyBaseLinkMethod(self, name):
         # adds a dummy base_link for ROS users
         self.append('<link name="world"></link>')
         self.append('<joint name="fixed" type="fixed">')
-        self.append('<parent link="world"/>')
-        self.append('<child link="' + name + '" />')
-        self.append('<origin rpy="0.0 0 0" xyz="0 0 0"/>')
+        self.append('  <parent link="world"/>')
+        self.append('  <child link="' + name + '" />')
         self.append('</joint>')
 
     def addFixedJoint(self, parent, child, matrix, name=None):
@@ -299,17 +369,10 @@ class RobotURDF(RobotDescription):
 
         self.append('<joint name="'+name+'" type="fixed">')
         self.append(origin(matrix))
-        self.append('<parent link="'+parent+'" />')
-        self.append('<child link="'+child+'" />')
-        self.append('<axis xyz="0 0 0"/>')
+        self.append('  <parent link="'+parent+'" />')
+        self.append('  <child link="'+child+'" />')
         self.append('</joint>')
-        self.append(f'<gazebo reference="{parent}">')
-        self.append('  <preserveFixedJoint>true</preserveFixedJoint>')
-        self.append('</gazebo>')
-        self.append(f'<gazebo reference="{name}">')
-        self.append('  <preserveFixedJoint>true</preserveFixedJoint>')
-        self.append('</gazebo>')
-        self.append('')
+        self.append(gazebo_fixed_joints(name))
 
     def startLink(self, name, matrix):
         self._link_name = name
@@ -319,6 +382,7 @@ class RobotURDF(RobotDescription):
             self.addDummyBaseLinkMethod(name)
             self.addDummyBaseLink = False
         self.append('<link name="'+name+'">')
+
 
     def endLink(self):
         mass, com, inertia = self.linkDynamics()
@@ -337,19 +401,13 @@ class RobotURDF(RobotDescription):
                     stl_combine.simplify_stl(self.meshDir+'/'+filename, self.maxSTLSize)
                 self.addSTL(np.identity(4), filename, color, self._link_name, node)
 
-        self.append('<inertial>')
-        self.append('<origin xyz="%g %g %g" rpy="0 0 0"/>' %
-                    (com[0], com[1], com[2]))
-        self.append('<mass value="%g" />' % mass)
-        self.append('<inertia ixx="%g" ixy="%g"  ixz="%g" iyy="%g" iyz="%g" izz="%g" />' %
-                    (inertia[0, 0], inertia[0, 1], inertia[0, 2], inertia[1, 1], inertia[1, 2], inertia[2, 2]))
-        self.append('</inertial>')
-
+        self.append_inertial(mass, com, inertia)
         if self.useFixedLinks:
             self.append(
                 '<visual><geometry><box size="0 0 0" /></geometry></visual>')
 
         self.append('</link>')
+        self.append(gazebo_fixed_joints(self._link_name))
         self.append('')
 
         if self.useFixedLinks:
@@ -368,9 +426,7 @@ class RobotURDF(RobotDescription):
         self.append(f'<mesh filename="{self.getMeshUrl(stl)}"/>')
         self.append('</geometry>')
         if node == "visual":
-            self.append('<material name="'+name+'_material">')
-            self.append('<color rgba="%g %g %g %g"/>' % tuple(color))
-            self.append('</material>')
+            self.append_material(name, color)
         self.append('</'+node+'>')
 
     def addPart(self, matrix, stl, material_tag: MaterialTag, mass, com, inertia, color, shapes=None, name=''):
@@ -415,9 +471,8 @@ class RobotURDF(RobotDescription):
                         self.append('</geometry>')
 
                         if entry == 'visual':
-                            self.append('<material name="'+name+'_material">')
-                            self.append('<color rgba="%g %g %g %g"/>' % tuple(color))
-                            self.append('</material>')
+                            self.append_material(name, color)
+                            self.gazebo_materials[name] = color
                         self.append('</'+entry+'>')
 
         self.addLinkDynamics(matrix, mass, com, inertia)
@@ -477,32 +532,59 @@ class RobotSDF(RobotDescription):
             mesh_dir /= "meshes"
         return mesh_dir
 
+    def append_inertial(
+        self,
+        mass: float,
+        com: Optional[List[float]] = None,
+        inertia: Optional[List[List[float]]]= None,
+        frame: Optional[str] = None,
+    ) -> None:
+        """Create an <inertial> element."""
+        inertial = etree.Element("inertial")
+        if com is not None:
+            kwargs = {"frame": frame} if frame else {}
+            pose = etree.SubElement(inertial, "pose", **kwargs)
+            pose.text = f"{com[0]:.5f} {com[1]:.5f} {com[2]:.5f} 0 0 0"
+        etree.SubElement(inertial, "mass").text = f"{mass:.5f}"
+        if inertia is None:
+            inertia = np.zeros((3, 3))
+        inertia_element = etree.SubElement(inertial, "inertia")
+        for element, (c, r) in _INERTIA_ENTRIES:
+            etree.SubElement(inertia_element, element).text = f"{inertia[r][c]:.5f}"
+        self.append(xml_to_string(inertial))
+
+    def append_material(self, name: str, color: List[float]) -> None:
+        """Append a <material> element."""
+        material = etree.Element("material", name=f"{name}_material")
+        rgba = " ".join([f"{c:.3f}" for c in color])
+        etree.SubElement(material, "ambient").text = rgba
+        etree.SubElement(material, "diffuse").text = rgba
+        script = etree.SubElement(material, "script")
+        etree.SubElement(script, "name").text = f"{self.robotName}/{name}"
+        if name in self.gazebo_materials:
+            print(f"Material name {name} already exists.")
+        self.gazebo_materials[name] = color
+        self.append(xml_to_string(material))
+
     def addFixedJoint(self, parent, child, matrix, name=None):
         if name is None:
-            name = parent+'_'+child+'_fixing'
+            name = f"{parent}_{child}_fixing"
 
-        self.append('<joint name="'+name+'" type="fixed">')
+        self.append(f'<joint name="{name}" type="fixed">')
         self.append(pose(matrix))
-        self.append('<parent>'+parent+'</parent>')
-        self.append('<child>'+child+'</child>')
+        self.append(f'<parent>parent</parent>')
+        self.append(f'<child>child</child>')
         self.append('</joint>')
-        self.append(f'<gazebo reference="{parent}">')
-        self.append('  <preserveFixedJoint>true</preserveFixedJoint>')
-        self.append('</gazebo>')
-        self.append(f'<gazebo reference="{name}">')
-        self.append('  <preserveFixedJoint>true</preserveFixedJoint>')
-        self.append('</gazebo>')
+        self.append(gazebo_fixed_joints(name))
         self.append('')
 
     def addDummyLink(self, name, visualMatrix=None, visualSTL=None, visualColor=None):
-        self.append('<link name="'+name+'">')
-        self.append('  <inertial>')
-        self.append('    <mass>1e-4</mass>')
-        self.append('    <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />')
-        self.append('  </inertial>')
+        self.append(f'<link name="{name}">')
+        self.append_inertial(mass=1e-4)
         if visualSTL is not None:
-            self.addSTL(visualMatrix, visualSTL, visualColor,
-                        name+"_visual", "visual")
+            self.addSTL(
+                visualMatrix, visualSTL, visualColor, f"{name}_visual", "visual"
+            )
         self.append('</link>')
 
     def startLink(self, name, matrix):
@@ -524,18 +606,12 @@ class RobotSDF(RobotDescription):
                     stl_combine.simplify_stl(self.meshDir / filename, self.maxSTLSize)
                 self.addSTL(np.identity(4), self.meshDir / filename, color, self._link_name, 'visual')
 
-        self.append('<inertial>')
-        self.append('<pose frame="'+self._link_name +
-                    '_frame">%g %g %g 0 0 0</pose>' % (com[0], com[1], com[2]))
-        self.append('<mass>%g</mass>' % mass)
-        self.append('<inertia><ixx>%g</ixx><ixy>%g</ixy><ixz>%g</ixz><iyy>%g</iyy><iyz>%g</iyz><izz>%g</izz></inertia>' %
-                    (inertia[0, 0], inertia[0, 1], inertia[0, 2], inertia[1, 1], inertia[1, 2], inertia[2, 2]))
-        self.append('</inertial>')
-
+        self.append_inertial(mass, com, inertia, f"{self._link_name}_frame")
         if self.useFixedLinks:
             self.append(
                 '<visual><geometry><box><size>0 0 0</size></box></geometry></visual>')
 
+        self.append(gazebo_fixed_joints(self._link_name))
         self.append('</link>')
         self.append('')
 
@@ -546,17 +622,7 @@ class RobotSDF(RobotDescription):
                 visual_name = '%s_%d' % (self._link_name, n)
                 self.addDummyLink(visual_name, visual[0], visual[1], visual[2])
                 self.addJoint('fixed', self._link_name, visual_name,
-                              np.eye(4), visual_name+'_fixing', None)
-
-    def material(self, color):
-        m = '<material>'
-        m += '<ambient>%g %g %g %g</ambient>' % tuple(color)
-        m += '<diffuse>%g %g %g %g</diffuse>' % tuple(color)
-        m += '<specular>0.1 0.1 0.1 1</specular>'
-        m += '<emissive>0 0 0 0</emissive>'
-        m += '</material>'
-
-        return m
+                              np.eye(4), f"{visual_name}_fixing", None)
 
     def addSTL(self, matrix, stl, color, name, node='visual'):
         self.append('<'+node+' name="'+name+'_visual">')
@@ -565,7 +631,7 @@ class RobotSDF(RobotDescription):
         self.append(f'<mesh><uri>{stl}</uri></mesh>')
         self.append('</geometry>')
         if node == 'visual':
-            self.append(self.material(color))
+            self.append_material(name, color)
         self.append('</'+node+'>')
 
     def addPart(self, matrix, stl, material_tag: MaterialTag, mass, com, inertia, color, shapes=None, name=''):
@@ -618,7 +684,7 @@ class RobotSDF(RobotDescription):
                         self.append('</geometry>')
 
                         if entry == 'visual':
-                            self.append(self.material(color))
+                            self.append_material(name, color)
                         self.append('</'+entry+'>')
 
         self.addLinkDynamics(matrix, mass, com, inertia)

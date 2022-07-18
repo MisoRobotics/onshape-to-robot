@@ -5,10 +5,12 @@ dataclasses; python_version < "3.7"
 dataclasses_json
 easydict
 jinja2
+lxml
 numpy
 numpy-stl
 onshape_client
 pybullet
+pytest
 PyYAML
 requests
 sphinx
