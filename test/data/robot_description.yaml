@@ -1,0 +1,62 @@
+---
+urdf:
+  inertia: |
+    <robot name="myrobot">
+    <inertial>
+      <origin xyz="1.00000 2.00000 3.00000"/>
+      <mass value="1.20000"/>
+      <inertia ixx="1.00000" ixy="2.00000" ixz="3.00000" iyy="5.00000" iyz="6.00000" izz="9.00000"/>
+    </inertial>
+  no_inertia: |
+    <robot name="myrobot">
+    <inertial>
+      <mass value="1.20000"/>
+      <inertia ixx="0.00000" ixy="0.00000" ixz="0.00000" iyy="0.00000" iyz="0.00000" izz="0.00000"/>
+    </inertial>
+  material: |
+    <robot name="myrobot">
+    <material name="mymaterial_material">
+      <color rgba="1.000 2.000 3.000 4.000"/>
+      <script>
+        <name>myrobot/mymaterial</name>
+      </script>
+    </material>
+sdf:
+  inertia: |
+    <sdf version="1.6">
+    <model name="myrobot">
+    <inertial>
+      <mass>1.20000</mass>
+      <inertia>
+        <ixx>1.00000</ixx>
+        <ixy>4.00000</ixy>
+        <ixz>7.00000</ixz>
+        <iyy>5.00000</iyy>
+        <iyz>8.00000</iyz>
+        <izz>9.00000</izz>
+      </inertia>
+    </inertial>
+  no_inertia: |
+    <sdf version="1.6">
+    <model name="myrobot">
+    <inertial>
+      <mass>1.20000</mass>
+      <inertia>
+        <ixx>0.00000</ixx>
+        <ixy>0.00000</ixy>
+        <ixz>0.00000</ixz>
+        <iyy>0.00000</iyy>
+        <iyz>0.00000</iyz>
+        <izz>0.00000</izz>
+      </inertia>
+    </inertial>
+  material: |
+    <sdf version="1.6">
+    <model name="myrobot">
+    <material name="mymaterial_material">
+      <ambient>1.000 2.000 3.000 4.000</ambient>
+      <diffuse>1.000 2.000 3.000 4.000</diffuse>
+      <script>
+        <name>myrobot/mymaterial</name>
+      </script>
+    </material>

@@ -15,6 +15,12 @@ package_types:
         destination: ./launch/view_robot.launch.py
       - source: view_robot.rviz2.jinja
         destination: ./rviz/view_robot.rviz
+      - source: robot.material.jinja
+        destination: ./media/materials/scripts/robot.material
+      - source: robot.bash.installspace.in.jinja
+        destination: ./env-hooks/robot.bash.installspace.in
+      - source: robot.bash.develspace.in.jinja
+        destination: ./env-hooks/robot.bash.develspace.in
   - name: catkin
     files:
       - source: flake8.jinja
@@ -29,6 +35,12 @@ package_types:
         destination: ./launch/view_robot.launch
       - source: view_robot.rviz1.jinja
         destination: ./rviz/view_robot.rviz
+      - source: robot.material.jinja
+        destination: ./media/materials/scripts//robot.material
+      - source: robot.bash.installspace.in.jinja
+        destination: ./env-hooks/robot.bash.installspace.in
+      - source: robot.bash.develspace.in.jinja
+        destination: ./env-hooks/robot.bash.develspace.in
 
 model_formats:
   - name: sdf

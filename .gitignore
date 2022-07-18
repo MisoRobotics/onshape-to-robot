@@ -3,8 +3,7 @@
 robots
 !robots/skeleton/config.json
 !robots/demo-quadruped/config.json
-data
 **/cache/
-dist
-build
+/dist/
+/build/
 onshape_to_robot.egg-info

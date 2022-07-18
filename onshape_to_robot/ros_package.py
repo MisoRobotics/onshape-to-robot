@@ -20,16 +20,15 @@ def _validate_package_name(package_name: str) -> None:
 
 
 def render_template(
-    filename: str, package_name: str, package_type: str, model_name: str
+    filename: str,
+    package_name: str,
+    **variables,
 ) -> str:
     """Render the specified template file and return as a string.
 
     Args:
         filename: Name of the template file from the templates folder.
         package_name: Name of the generated catkin/ament package.
-        package_type: The type of package to generate like "ament".
-        model_name: The name of the model to generate.
-
     Returns:
         The contents generated from rendering the passed template file.
 
@@ -41,11 +40,7 @@ def render_template(
         keep_trailing_newline=True,
     )
     template = env.get_template(filename)
-    rendered_content = template.render(
-        package_name=package_name,
-        package_type=package_type,
-        model_name=model_name,
-    )
+    rendered_content = template.render(package_name=package_name, **variables)
     return rendered_content
 
 
@@ -53,9 +48,8 @@ def process_template(
     filename: str,
     subpath: Path,
     package_name: str,
-    package_type: str,
-    model_name: str,
-    output_dir: Path = Path.cwd(),
+    output_dir: Path,
+    **variables,
 ) -> Path:
     """Render the specified template and write to an output file.
 
@@ -63,8 +57,6 @@ def process_template(
         filename: Name of the template file from the templates folder.
         subpath: Subpath at which to place output file.
         package_name: Name of the generated catkin/ament package.
-        package_type: The type of package to generate like "ament".
-        model_name: The name of the model to generate.
         output_dir: Directory into which to place generated files.
 
     Returns:
@@ -76,7 +68,7 @@ def process_template(
     output_filepath = output_dir / subpath
     output_dir = Path(os.path.dirname(output_filepath))
     output_dir.mkdir(parents=True, exist_ok=True)
-    rendered_content = render_template(filename, package_name, package_type, model_name)
+    rendered_content = render_template(filename, package_name, **variables)
     with open(output_filepath, "w", encoding="utf-8") as stream:
         stream.write(rendered_content)
     return output_filepath
@@ -116,6 +108,7 @@ def generate_package(
     package_type: str,
     model_name: str,
     model_format: str,
+    gazebo_materials: str,
     output_dir: Path = Path.cwd(),
 ) -> List[Path]:
     """Generate a catkin/ament package for ROS.
@@ -134,9 +127,10 @@ def generate_package(
             item["source"],
             item["destination"],
             package_name,
-            package_type,
-            model_name,
-            output_dir,
+            output_dir=output_dir,
+            package_type=package_type,
+            model_name=model_name,
+            gazebo_materials=gazebo_materials,
         )
         for item in templates
     ]
