@@ -8,7 +8,10 @@ setuptools.setup(
     version="0.3.15~0misorobotics10",
     author="Rhoban team",
     author_email="team@rhoban.com",
-    description="Converting OnShape assembly to robot definition (SDF or URDF) through OnShape API ",
+    description=(
+        "Convert an Onshape assembly to a robot definition (SDF or URDF) through "
+        "the Onshape API."
+    ),
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/rhoban/onshape-to-robot/",
@@ -27,7 +30,10 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    keywords="robot robotics cad design onshape bullet pybullet sdf urdf gazebo ros model kinematics",
+    keywords=(
+        "robot robotics cad design onshape bullet pybullet sdf urdf gazebo "
+        "ros model kinematics"
+    ),
     install_requires=[
         "colorama",
         "commentjson",

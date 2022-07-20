@@ -1,7 +1,6 @@
 """Generate a launch file for ROS 2."""
 import os
 from collections import defaultdict
-from enum import Enum
 from pathlib import Path
 from typing import List
 from warnings import warn

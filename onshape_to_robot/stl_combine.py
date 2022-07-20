@@ -1,15 +1,10 @@
-import math
 import os
 import shutil
 import subprocess
 
 import numpy as np
 import stl
-from colorama import (
-    Back,
-    Fore,
-    Style,
-)
+from colorama import Fore
 from stl import mesh
 
 
@@ -82,7 +77,7 @@ def reduce_faces(in_file, out_file, reduction=0.5):
     command += " > /tmp/meshlab.log 2>&1"
     # Execute command
     # print("Going to execute: " + command)
-    output = subprocess.check_output(command, shell=True)
+    subprocess.check_output(command, shell=True)
     # last_line = output.splitlines()[-1]
     # print("Done:")
     # print(in_file + " > " + out_file + ": " + last_line)
