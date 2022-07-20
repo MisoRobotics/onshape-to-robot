@@ -43,6 +43,8 @@ setuptools.setup(
         "pybullet",
         "PyYAML",
         "requests",
+        "sqlalchemy",
+        "sqlalchemy-utils",
         "transforms3d",
     ],
     include_package_data=True,
