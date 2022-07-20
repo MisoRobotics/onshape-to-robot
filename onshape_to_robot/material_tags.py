@@ -1,10 +1,16 @@
 """Use Onshape materials to tag collision objects."""
 import json
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import (
+    List,
+    Optional,
+)
 
 import onshape_client
-from dataclasses_json import LetterCase, dataclass_json
+from dataclasses_json import (
+    LetterCase,
+    dataclass_json,
+)
 from onshape_client.oas.models.bt_part_metadata_info import BTPartMetadataInfo
 
 

@@ -1,8 +1,16 @@
 import dataclasses
 import math
-from typing import Final, Optional, Tuple
+from typing import (
+    Final,
+    Optional,
+    Tuple,
+)
 
-from colorama import Back, Fore, Style
+from colorama import (
+    Back,
+    Fore,
+    Style,
+)
 from onshape_client import Client as OnshapeClient
 from onshape_client import OnshapeElement
 
@@ -16,66 +24,85 @@ def init(client, config, root, workspaceId, assemblyId):
 
     # Retrieving root configuration parameters
     configuration_parameters = {}
-    parts = root['fullConfiguration'].split(';')
+    parts = root["fullConfiguration"].split(";")
     for part in parts:
-        kv = part.split('=')
+        kv = part.split("=")
         if len(kv) == 2:
-            configuration_parameters[kv[0]] = kv[1].replace('+', ' ')
+            configuration_parameters[kv[0]] = kv[1].replace("+", " ")
 
 
 def readExpression(expression):
     # Expression can itself be a variable from configuration
     # XXX: This doesn't handle all expression, only values and variables
-    if expression[0] == '#':
+    if expression[0] == "#":
         expression = configuration_parameters[expression[1:]]
-    if expression[0:2] == '-#':
-        expression = '-'+configuration_parameters[expression[2:]]
+    if expression[0:2] == "-#":
+        expression = "-" + configuration_parameters[expression[2:]]
 
-    parts = expression.split(' ')
+    parts = expression.split(" ")
 
     # Checking the unit, returning only radians and meters
-    if parts[1] == 'deg':
+    if parts[1] == "deg":
         return math.radians(float(parts[0]))
-    elif parts[1] in ['radian', 'rad']:
+    elif parts[1] in ["radian", "rad"]:
         return float(parts[0])
-    elif parts[1] == 'mm':
-        return float(parts[0])/1000.0
-    elif parts[1] == 'm':
+    elif parts[1] == "mm":
+        return float(parts[0]) / 1000.0
+    elif parts[1] == "m":
         return float(parts[0])
-    elif parts[1] == 'in':
-        return float(parts[0])*0.0254
+    elif parts[1] == "in":
+        return float(parts[0]) * 0.0254
     else:
-        print(Fore.RED + 'Unknown unit: '+parts[1] + Style.RESET_ALL)
+        print(Fore.RED + "Unknown unit: " + parts[1] + Style.RESET_ALL)
         exit()
 
 
 def readParameterValue(parameter, name):
     # This is an expression
-    if parameter['typeName'] == 'BTMParameterNullableQuantity':
-        return readExpression(parameter['message']['expression'])
-    if parameter['typeName'] == 'BTMParameterConfigured':
-        message = parameter['message']
-        parameterValue = configuration_parameters[message['configurationParameterId']]
+    if parameter["typeName"] == "BTMParameterNullableQuantity":
+        return readExpression(parameter["message"]["expression"])
+    if parameter["typeName"] == "BTMParameterConfigured":
+        message = parameter["message"]
+        parameterValue = configuration_parameters[message["configurationParameterId"]]
 
-        for value in message['values']:
-            if value['typeName'] == 'BTMConfiguredValueByBoolean':
-                booleanValue = (parameterValue == 'true')
-                if value['message']['booleanValue'] == booleanValue:
-                    return readExpression(value['message']['value']['message']['expression'])
-            elif value['typeName'] == 'BTMConfiguredValueByEnum':
-                if value['message']['enumValue'] == parameterValue:
-                    return readExpression(value['message']['value']['message']['expression'])
+        for value in message["values"]:
+            if value["typeName"] == "BTMConfiguredValueByBoolean":
+                booleanValue = parameterValue == "true"
+                if value["message"]["booleanValue"] == booleanValue:
+                    return readExpression(
+                        value["message"]["value"]["message"]["expression"]
+                    )
+            elif value["typeName"] == "BTMConfiguredValueByEnum":
+                if value["message"]["enumValue"] == parameterValue:
+                    return readExpression(
+                        value["message"]["value"]["message"]["expression"]
+                    )
             else:
-                print(Fore.RED+"Can't read value of parameter "+name+" configured with "+value['typeName']+Style.RESET_ALL)
+                print(
+                    Fore.RED
+                    + "Can't read value of parameter "
+                    + name
+                    + " configured with "
+                    + value["typeName"]
+                    + Style.RESET_ALL
+                )
                 exit()
 
-        print(Fore.RED+"Could not find the value for "+name+Style.RESET_ALL)
+        print(Fore.RED + "Could not find the value for " + name + Style.RESET_ALL)
     else:
-        print(Fore.RED+'Unknown feature type for '+name+': ' +
-              parameter['typeName']+Style.RESET_ALL)
+        print(
+            Fore.RED
+            + "Unknown feature type for "
+            + name
+            + ": "
+            + parameter["typeName"]
+            + Style.RESET_ALL
+        )
         exit()
 
+
 # Gets the limits of a given joint
+
 
 @dataclasses.dataclass
 class FeatureSource:
@@ -87,10 +114,7 @@ class FeatureSource:
 
     def get_feature(self, name: str) -> dict:
         features = self._client.assemblies_api.get_features(
-            self._element.did,
-            self._element.wvm,
-            self._element.wvmid,
-            self._element.eid
+            self._element.did, self._element.wvm, self._element.wvmid, self._element.eid
         )
         for feature in features["features"]:
             if feature["name"] == name:
@@ -118,7 +142,9 @@ class FeatureSource:
             )
             return None
 
-        return tuple((
-            readExpression(parameters[f"limit{infix}Z{suffix}"].expression)
-            for suffix in ("Min", "Max")
-        ))
+        return tuple(
+            (
+                readExpression(parameters[f"limit{infix}Z{suffix}"].expression)
+                for suffix in ("Min", "Max")
+            )
+        )

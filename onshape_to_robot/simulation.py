@@ -1,12 +1,16 @@
-from transforms3d.quaternions import mat2quat, quat2mat
 import math
-import sys
-import time
-import numpy as np
-import pybullet as p
-from time import sleep
 import os
 import re
+import sys
+import time
+from time import sleep
+
+import numpy as np
+import pybullet as p
+from transforms3d.quaternions import (
+    mat2quat,
+    quat2mat,
+)
 
 
 class Simulation:
@@ -14,8 +18,19 @@ class Simulation:
     A Bullet simulation involving Sigmaban humanoid robot
     """
 
-    def __init__(self, robotPath, floor=True, fixed=False, transparent=False, gui=True,
-                 realTime=True, panels=False, useUrdfInertia=True, dt=0.002, physicsClient = None):
+    def __init__(
+        self,
+        robotPath,
+        floor=True,
+        fixed=False,
+        transparent=False,
+        gui=True,
+        realTime=True,
+        panels=False,
+        useUrdfInertia=True,
+        dt=0.002,
+        physicsClient=None,
+    ):
         """Creates an instance of humanoid simulation
 
         Keyword Arguments:
@@ -41,8 +56,14 @@ class Simulation:
         self.lines = []
         self.currentLine = 0
         self.lastLinesDraw = 0
-        self.lineColors = [[1, 0, 0], [0, 1, 0], [
-            0, 0, 1], [1, 1, 0], [1, 0, 1], [0, 1, 1]]
+        self.lineColors = [
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+            [1, 1, 0],
+            [1, 0, 1],
+            [0, 1, 1],
+        ]
 
         # Instanciating bullet
         if physicsClient is None:
@@ -55,8 +76,7 @@ class Simulation:
         # Light GUI
         if not panels:
             p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
-            p.configureDebugVisualizer(
-                p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
+            p.configureDebugVisualizer(p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW, 0)
             p.configureDebugVisualizer(p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, 0)
             p.configureDebugVisualizer(p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0)
 
@@ -64,7 +84,7 @@ class Simulation:
 
         # Loading floor and/or plane ground
         if floor:
-            self.floor = p.loadURDF(self.dir+'/bullet/plane.urdf')
+            self.floor = p.loadURDF(self.dir + "/bullet/plane.urdf")
         else:
             self.floor = None
 
@@ -76,9 +96,9 @@ class Simulation:
         flags = p.URDF_USE_SELF_COLLISION
         if useUrdfInertia:
             flags += p.URDF_USE_INERTIA_FROM_FILE
-        self.robot = p.loadURDF(robotPath,
-                                startPos, startOrientation,
-                                flags=flags, useFixedBase=fixed)
+        self.robot = p.loadURDF(
+            robotPath, startPos, startOrientation, flags=flags, useFixedBase=fixed
+        )
 
         # Setting frictions parameters to default ones
         self.setFloorFrictions()
@@ -99,29 +119,26 @@ class Simulation:
         n = 0
         for k in range(p.getNumJoints(self.robot)):
             jointInfo = p.getJointInfo(self.robot, k)
-            name = jointInfo[1].decode('utf-8')
-            if not name.endswith('_fixing') and not name.endswith('_passive'):
-                if '_frame' in name:
+            name = jointInfo[1].decode("utf-8")
+            if not name.endswith("_fixing") and not name.endswith("_passive"):
+                if "_frame" in name:
                     self.frames[name] = k
                 else:
                     self.jointsIndexes[name] = n
                     n += 1
                     self.joints[name] = k
-                    self.jointsInfos[name] = {
-                        'type': jointInfo[2]
-                    }
+                    self.jointsInfos[name] = {"type": jointInfo[2]}
                     if jointInfo[8] < jointInfo[9]:
-                        self.jointsInfos[name]['lowerLimit'] = jointInfo[8]
-                        self.jointsInfos[name]['upperLimit'] = jointInfo[9]
+                        self.jointsInfos[name]["lowerLimit"] = jointInfo[8]
+                        self.jointsInfos[name]["upperLimit"] = jointInfo[9]
 
         # Changing robot opacity if transparent set to true
         if transparent:
             for k in range(p.getNumJoints(self.robot)):
-                p.changeVisualShape(self.robot, k, rgbaColor=[
-                                    0.3, 0.3, 0.3, 0.3])
+                p.changeVisualShape(self.robot, k, rgbaColor=[0.3, 0.3, 0.3, 0.3])
 
-        print('* Found '+str(len(self.joints))+' DOFs')
-        print('* Found '+str(len(self.frames))+' frames')
+        print("* Found " + str(len(self.joints)) + " DOFs")
+        print("* Found " + str(len(self.frames)) + " frames")
 
     def setFloorFrictions(self, lateral=1, spinning=-1, rolling=-1):
         """Sets the frictions with the plane object
@@ -132,8 +149,13 @@ class Simulation:
             rolling {float} -- rolling friction (default: {-1.0})
         """
         if self.floor is not None:
-            p.changeDynamics(self.floor, -1, lateralFriction=lateral,
-                             spinningFriction=spinning, rollingFriction=rolling)
+            p.changeDynamics(
+                self.floor,
+                -1,
+                lateralFriction=lateral,
+                spinningFriction=spinning,
+                rollingFriction=rolling,
+            )
 
     def lookAt(self, target):
         """Control the look of the visualizer camera
@@ -143,8 +165,7 @@ class Simulation:
         """
         if self.gui:
             params = p.getDebugVisualizerCamera()
-            p.resetDebugVisualizerCamera(
-                params[10], params[8], params[9], target)
+            p.resetDebugVisualizerCamera(params[10], params[8], params[9], target)
 
     def getRobotPose(self):
         """Gets the robot (origin) position
@@ -166,7 +187,7 @@ class Simulation:
             np.matrix -- a 4x4 matrix
         """
 
-        if frame == 'origin':
+        if frame == "origin":
             frameToWorldPose = p.getBasePositionAndOrientation(self.robot)
         else:
             frameToWorldPose = p.getLinkState(self.robot, self.frames[frame])
@@ -194,8 +215,9 @@ class Simulation:
         quaternion = pose[1]
 
         # NOTE: PyBullet quaternions are x, y, z, w
-        rotation = quat2mat([quaternion[3], quaternion[0],
-                             quaternion[1], quaternion[2]])
+        rotation = quat2mat(
+            [quaternion[3], quaternion[0], quaternion[1], quaternion[2]]
+        )
 
         m = np.identity(4)
         m[0:3, 0:3] = rotation
@@ -210,8 +232,7 @@ class Simulation:
         quaternion = mat2quat(arr[0:3, 0:3])
 
         # NOTE: PyBullet quaternions are x, y, z, w
-        quaternion = [quaternion[1], quaternion[2],
-                      quaternion[3], quaternion[0]]
+        quaternion = [quaternion[1], quaternion[2], quaternion[3], quaternion[0]]
 
         return translation, quaternion
 
@@ -224,7 +245,7 @@ class Simulation:
         """
         p.resetBasePositionAndOrientation(self.robot, pos, orn)
 
-    def reset(self, height=0.5, orientation='straight'):
+    def reset(self, height=0.5, orientation="straight"):
         """Resets the robot for experiment (joints, robot position, simulator time)
 
         Keyword Arguments:
@@ -237,10 +258,10 @@ class Simulation:
 
         # Resets the robot position
         orn = [0, 0, 0]
-        if orientation == 'front':
-            orn = [0, math.pi/2, 0]
-        elif orientation == 'back':
-            orn = [0, -math.pi/2, 0]
+        if orientation == "front":
+            orn = [0, math.pi / 2, 0]
+        elif orientation == "back":
+            orn = [0, -math.pi / 2, 0]
         self.resetPose([0, 0, height], p.getQuaternionFromEuler(orn))
 
         # Reset the joints to 0
@@ -309,17 +330,30 @@ class Simulation:
 
         for name in joints.keys():
             if name in self.joints:
-                if name.endswith('_speed'):
+                if name.endswith("_speed"):
                     p.setJointMotorControl2(
-                        self.robot, self.joints[name], p.VELOCITY_CONTROL, targetVelocity=joints[name])
+                        self.robot,
+                        self.joints[name],
+                        p.VELOCITY_CONTROL,
+                        targetVelocity=joints[name],
+                    )
                 else:
                     if name in self.maxTorques:
                         maxTorque = self.maxTorques[name]
                         p.setJointMotorControl2(
-                            self.robot, self.joints[name], p.POSITION_CONTROL, joints[name], force=maxTorque)
+                            self.robot,
+                            self.joints[name],
+                            p.POSITION_CONTROL,
+                            joints[name],
+                            force=maxTorque,
+                        )
                     else:
                         p.setJointMotorControl2(
-                            self.robot, self.joints[name], p.POSITION_CONTROL, joints[name])
+                            self.robot,
+                            self.joints[name],
+                            p.POSITION_CONTROL,
+                            joints[name],
+                        )
 
                 applied[name] = p.getJointState(self.robot, self.joints[name])
             else:
@@ -372,7 +406,7 @@ class Simulation:
 
         k = -1
         mass = 0
-        com = np.array([0., 0., 0.])
+        com = np.array([0.0, 0.0, 0.0])
         while True:
             if k == -1:
                 pos, _ = p.getBasePositionAndOrientation(self.robot)
@@ -407,10 +441,10 @@ class Simulation:
         if self.currentLine >= len(self.lines):
             self.lines.append({})
 
-        self.lines[self.currentLine]['update'] = True
-        self.lines[self.currentLine]['to'] = position
-        self.lines[self.currentLine]['color'] = color
-        self.lines[self.currentLine]['duration'] = duration
+        self.lines[self.currentLine]["update"] = True
+        self.lines[self.currentLine]["to"] = position
+        self.lines[self.currentLine]["color"] = color
+        self.lines[self.currentLine]["duration"] = duration
 
         self.currentLine += 1
 
@@ -419,14 +453,15 @@ class Simulation:
         self.currentLine = 0
         if time.time() - self.lastLinesDraw > 0.05:
             for line in self.lines:
-                if 'from' in line:
-                    if line['update'] == True:
+                if "from" in line:
+                    if line["update"] == True:
                         p.addUserDebugLine(
-                            line['from'], line['to'], line['color'], 2, line['duration'])
-                        line['update'] = False
+                            line["from"], line["to"], line["color"], 2, line["duration"]
+                        )
+                        line["update"] = False
                     else:
-                        del line['from']
-                line['from'] = line['to']
+                        del line["from"]
+                line["from"] = line["to"]
 
             self.lastLinesDraw = time.time()
 
@@ -441,10 +476,9 @@ class Simulation:
         for contact in contacts:
             link_index = contact[4]
             if link_index >= 0:
-                link_name = (p.getJointInfo(
-                    self.robot, link_index)[12]).decode()
+                link_name = (p.getJointInfo(self.robot, link_index)[12]).decode()
             else:
-                link_name = 'base'
+                link_name = "base"
             result.append((link_name, contact[6], contact[7], contact[9]))
 
         return result

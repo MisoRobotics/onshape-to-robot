@@ -1,24 +1,26 @@
-import math
-import sys
-import os
-import time
 import argparse
+import math
+import os
+import sys
+import time
+
 import pybullet as p
+
 from .simulation import Simulation
 
 
 def main():
     parser = argparse.ArgumentParser(prog="onshape-to-robot-bullet")
-    parser.add_argument('-f', '--fixed', action='store_true')
-    parser.add_argument('-x', '--x', type=float, default=0)
-    parser.add_argument('-y', '--y', type=float, default=0)
-    parser.add_argument('-z', '--z', type=float, default=0)
-    parser.add_argument('directory')
+    parser.add_argument("-f", "--fixed", action="store_true")
+    parser.add_argument("-x", "--x", type=float, default=0)
+    parser.add_argument("-y", "--y", type=float, default=0)
+    parser.add_argument("-z", "--z", type=float, default=0)
+    parser.add_argument("directory")
     args = parser.parse_args()
 
     robotPath = args.directory
-    if not robotPath.endswith('.urdf'):
-        robotPath += '/robot.urdf'
+    if not robotPath.endswith(".urdf"):
+        robotPath += "/robot.urdf"
 
     sim = Simulation(robotPath, gui=True, panels=True, fixed=args.fixed)
     pos, rpy = sim.getRobotPose()
@@ -27,17 +29,16 @@ def main():
 
     controls = {}
     for name in sim.getJoints():
-        if name.endswith('_speed'):
-            controls[name] = p.addUserDebugParameter(
-                name, -math.pi*3, math.pi*3, 0)
+        if name.endswith("_speed"):
+            controls[name] = p.addUserDebugParameter(name, -math.pi * 3, math.pi * 3, 0)
         else:
             infos = sim.getJointsInfos(name)
             low = -math.pi
             high = math.pi
-            if 'lowerLimit' in infos:
-                low = infos['lowerLimit']
-            if 'upperLimit' in infos:
-                high = infos['upperLimit']
+            if "lowerLimit" in infos:
+                low = infos["lowerLimit"]
+            if "upperLimit" in infos:
+                high = infos["upperLimit"]
             controls[name] = p.addUserDebugParameter(name, low, high, 0)
 
     lastPrint = 0
