@@ -36,6 +36,7 @@ setuptools.setup(
         "dataclasses_json",
         "easy_dict",
         "jinja2",
+        "lxml",
         "numpy",
         "numpy-stl",
         "onshape_client",

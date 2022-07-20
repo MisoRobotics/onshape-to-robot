@@ -7,12 +7,14 @@ from abc import (
 )
 from pathlib import Path
 from typing import Optional
-from xml.etree import ElementTree
 
 import numpy as np
+from lxml import etree
 
 from . import stl_combine
 from .material_tags import MaterialTag
+
+XML_INDENT = " " * 2
 
 
 def rotationMatrixToEulerAngles(R):
@@ -217,20 +219,19 @@ class RobotDescription(ABC):
 
         return mass, com, inertia
 
-    def write(self, filepath: Path) -> None:
+    def write(self, filepath: Optional[Path] = None) -> None:
         """Write the robot description to the passed filepath.
 
         Args:
             filepath: The path to the robot description to write.
 
         """
+        if filepath is None:
+            filepath = self.modelFilePath
         print("Writing robot description to {}".format(filepath))
-        with open(filepath, "w", encoding="utf-8") as stream:
-            stream.write(self.xml)
-        # xml = BeautifulSoup(self.xml, "xml").prettify()
-        # element = ElementTree.fromstring(xml)
-        # tree = ElementTree.ElementTree(element)
-        # tree.write(filepath, encoding="utf-8")
+        element = etree.ElementTree(etree.fromstring(self.xml))
+        etree.indent(element, XML_INDENT)
+        element.write(str(filepath), encoding="utf-8", xml_declaration=True)
 
 
 class RobotURDF(RobotDescription):
