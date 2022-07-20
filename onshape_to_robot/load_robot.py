@@ -28,7 +28,7 @@ configFile = config.configPath
 # OnShape API client
 workspaceId = None
 client = Client(logging=False, creds=configFile)
-client.useCollisionsConfigurations = config["useCollisionsConfigurations"]
+client.use_collisions_configurations = config["useCollisionsConfigurations"]
 
 if not config["documentsUrl"]:
     raise Exception("Only documentsUrl is supported.")
