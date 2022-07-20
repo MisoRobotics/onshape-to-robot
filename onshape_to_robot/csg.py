@@ -1,13 +1,13 @@
+"""
+These functions are responsible for parsing CSG files (constructive solid geometry),
+which are files produced by OpenSCAD, containing no loop, variables etc.
+"""
+
 import json
 import os
 import re
 
 import numpy as np
-
-"""
-These functions are responsible for parsing CSG files (constructive solid geometry), which are files
-produced by OpenSCAD, containing no loop, variables etc.
-"""
 
 
 def multmatrix_parse(parameters):

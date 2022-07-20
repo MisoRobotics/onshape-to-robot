@@ -5,7 +5,6 @@ import sys
 import commentjson as json
 import numpy as np
 from colorama import (
-    Back,
     Fore,
     Style,
 )
@@ -34,7 +33,6 @@ def main():
 
         with open(partFileName, "r", encoding="utf-8") as stream:
             part = json.load(stream)
-        partid = part["partId"]
         result = client.get_sketches(
             part["documentId"],
             part["documentMicroversion"],
@@ -52,9 +50,8 @@ def main():
                     sketch["thickness"] = float(parts[1])
                 else:
                     print(
-                        Fore.RED
-                        + 'ERROR: The sketch name should contain extrusion size (e.g "PureShapes 5.3")'
-                        + Style.RESET_ALL
+                        f"{Fore.RED}ERROR: The sketch name should contain extrusion "
+                        f"size (e.g., 'PureShapes 5.3'{Style.RESET_ALL}"
                     )
                     exit(0)
                 sketchDatas.append(sketch)

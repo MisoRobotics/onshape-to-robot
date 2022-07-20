@@ -7,14 +7,11 @@ from typing import (
 )
 
 from colorama import (
-    Back,
     Fore,
     Style,
 )
 from onshape_client import Client as OnshapeClient
 from onshape_client import OnshapeElement
-
-from .onshape_api.client import Client
 
 configuration_parameters = {}
 
@@ -138,7 +135,8 @@ class FeatureSource:
 
         if not enabled:
             print(
-                f"{Fore.YELLOW}WARNING: Joint '{name}' of type '{joint_type}' has no limits.{Style.RESET_ALL}"
+                f"{Fore.YELLOW}WARNING: Joint '{name}' of type '{joint_type}' "
+                f"has no limits.{Style.RESET_ALL}"
             )
             return None
 

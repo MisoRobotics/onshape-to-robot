@@ -1,9 +1,6 @@
 import math
 import os
-import re
-import sys
 import time
-from time import sleep
 
 import numpy as np
 import pybullet as p
@@ -35,11 +32,14 @@ class Simulation:
 
         Keyword Arguments:
             field {bool} -- enable the display of the field (default: {False})
-            fixed {bool} -- makes the base of the robot floating/fixed (default: {False})
+            fixed {bool} -- makes the base of the robot floating/fixed
+                (default: {False})
             transparent {bool} -- makes the robot transparent (default: {False})
-            gui {bool} -- enables the gui visualizer, if False it will runs headless (default {True})
+            gui {bool} -- enables the gui visualizer, if False it will runs headless
+                (default {True})
             realTime {bool} -- try to have simulation in real time (default {True})
-            panels {bool} -- show/hide the user interaction pyBullet panels (default {False})
+            panels {bool} -- show/hide the user interaction pyBullet panels
+                (default {False})
             useUrdfInertia {bool} -- use URDF from URDF file (default {True})
             dt {float} -- time step (default {0.002})
         """
@@ -250,7 +250,8 @@ class Simulation:
 
         Keyword Arguments:
             height {float} -- height of the reset (m) (default: {0.55})
-            orientation {str} -- orientation (straight, front or back) of the robot (default: {'straight'})
+            orientation {str} -- orientation (straight, front or back) of the robot
+                (default: {'straight'})
         """
         self.lines = []
         self.t = 0
@@ -284,7 +285,8 @@ class Simulation:
             frame {str} -- frame name
 
         Returns:
-            tuple -- (pos, orn), where pos is (x, y, z) and orn is quaternions (x, y, z, w)
+            tuple -- (pos, orn), where pos is (x, y, z) and orn is quaternions
+                (x, y, z, w)
         """
         jointState = p.getLinkState(self.robot, self.frames[frame])
         return (jointState[0], jointState[1])
@@ -324,7 +326,8 @@ class Simulation:
             Exception: if a joint is not found, exception is raised
 
         Returns:
-            applied {dict} -- dict of joint states (position, velocity, reaction forces, applied torque)
+            applied {dict} -- dict of joint states (position, velocity, reaction forces,
+            applied torque)
         """
         applied = {}
 
@@ -433,7 +436,8 @@ class Simulation:
 
         Keyword Arguments:
             color {tuple} -- (r,g,b) (0->1) (default: {None})
-            duration {float} -- line duration on screen before disapearing (default: {30})
+            duration {float} -- line duration on screen before disapearing
+                (default: {30})
         """
         if color is None:
             color = self.lineColors[self.currentLine % len(self.lineColors)]
@@ -454,7 +458,7 @@ class Simulation:
         if time.time() - self.lastLinesDraw > 0.05:
             for line in self.lines:
                 if "from" in line:
-                    if line["update"] == True:
+                    if line["update"]:
                         p.addUserDebugLine(
                             line["from"], line["to"], line["color"], 2, line["duration"]
                         )
@@ -469,7 +473,8 @@ class Simulation:
         """Gets all contact points and forces
 
         Returns:
-            list -- list of entries (link_name, position in m, normal force vector, force in N)
+            list -- list of entries (link_name, position in m, normal force vector,
+                    force in N)
         """
         result = []
         contacts = p.getContactPoints(bodyA=self.floor, bodyB=self.robot)
@@ -503,7 +508,10 @@ class Simulation:
             self.tick()
 
     def tick(self):
-        """Ticks one step of simulation. If realTime is True, sleeps to compensate real time"""
+        """Tick one step of simulation.
+
+        If realTime is True, sleeps to compensate real time.
+        """
         self.t += self.dt
         self.drawDebugLines()
 
