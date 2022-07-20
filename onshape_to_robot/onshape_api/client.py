@@ -21,6 +21,7 @@ from urllib.parse import (
 )
 
 from .onshape import Onshape
+from .onshape_cache import OnshapeCache
 
 
 def double_escape_slash(s):
@@ -71,11 +72,10 @@ class Client:
             - logging (bool, default=True): Turn logging on or off
         """
 
-        self._metadata_cache = {}
-        self._massproperties_cache = {}
         self._stack = stack
         self._api = Onshape(stack=stack, logging=logging, creds=creds)
-        self.useCollisionsConfigurations = True
+        self._cache = OnshapeCache(Client.get_cache_path() / "onshape_cache.db")
+        self.use_collisions_configurations = True
 
     @staticmethod
     def get_cache_path() -> Path:
@@ -141,23 +141,6 @@ class Client:
             - requests.Response: Onshape response data
         """
         return self._api.request("get", "/api/documents/" + did)
-
-    def cache_get(self, method, key, callback, isString=False):
-        if type(key) == tuple:
-            key = "_".join(list(key))
-        fileName = method + "__" + key
-        dirName = self.get_cache_path()
-        fileName = dirName / fileName
-        if os.path.exists(fileName):
-            with open(fileName, "rb") as stream:
-                result = stream.read()
-        else:
-            result = callback().content
-            with open(fileName, "wb") as stream:
-                stream.write(result)
-        if isString and type(result) == bytes:
-            result = result.decode("utf-8")
-        return result
 
     def list_documents(self):
         """
@@ -355,11 +338,6 @@ class Client:
             headers=req_headers,
         )
 
-    def hash_partid(self, data):
-        m = hashlib.sha1()
-        m.update(data.encode("utf-8"))
-        return m.hexdigest()
-
     def get_sketches(self, did, mid, eid, configuration):
         def invoke():
             return self._api.request(
@@ -369,7 +347,7 @@ class Client:
             )
 
         return json.loads(
-            self.cache_get("sketches", (did, mid, eid, configuration), invoke)
+            self._cache.get_or_add("sketches", (did, mid, eid, configuration), invoke)
         )
 
     def get_parts(self, did, mid, eid, configuration):
@@ -381,7 +359,7 @@ class Client:
             )
 
         return json.loads(
-            self.cache_get("parts_list", (did, mid, eid, configuration), invoke)
+            self._cache.get_or_add("parts_list", (did, mid, eid, configuration), invoke)
         )
 
     def find_new_partid(
@@ -404,7 +382,7 @@ class Client:
         return partid
 
     def part_studio_stl_m(self, did, mid, eid, partid, configuration="default"):
-        if self.useCollisionsConfigurations:
+        if self.use_collisions_configurations:
             configuration_before = configuration
             parts = configuration.split(";")
             partIdChanged = False
@@ -444,8 +422,8 @@ class Client:
                 headers=req_headers,
             )
 
-        return self.cache_get(
-            "part_stl", (did, mid, eid, self.hash_partid(partid), configuration), invoke
+        return self._cache.get_or_add(
+            "part_stl", (did, mid, eid, partid, configuration), invoke
         )
 
     def part_get_metadata(self, did, mid, eid, partid, configuration="default"):
@@ -465,9 +443,9 @@ class Client:
             )
 
         return json.loads(
-            self.cache_get(
+            self._cache.get_or_add(
                 "metadata",
-                (did, mid, eid, self.hash_partid(partid), configuration),
+                (did, mid, eid, partid, configuration),
                 invoke,
                 True,
             )
@@ -490,9 +468,9 @@ class Client:
             )
 
         return json.loads(
-            self.cache_get(
+            self._cache.get_or_add(
                 "massproperties",
-                (did, mid, eid, self.hash_partid(partid), configuration),
+                (did, mid, eid, partid, configuration),
                 invoke,
                 True,
             )
