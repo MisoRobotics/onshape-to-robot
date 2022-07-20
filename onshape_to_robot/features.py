@@ -7,7 +7,11 @@ from typing import (
     Tuple,
 )
 
-from colorama import Back, Fore, Style
+from colorama import (
+    Back,
+    Fore,
+    Style,
+)
 from onshape_client import Client as OnshapeClient
 from onshape_client import OnshapeElement
 

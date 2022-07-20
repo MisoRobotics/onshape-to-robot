@@ -7,7 +7,12 @@ from typing import List
 from warnings import warn
 
 import yaml
-from jinja2 import Environment, FileSystemLoader, PackageLoader, select_autoescape
+from jinja2 import (
+    Environment,
+    FileSystemLoader,
+    PackageLoader,
+    select_autoescape,
+)
 
 
 def _validate_package_name(package_name: str) -> None:
