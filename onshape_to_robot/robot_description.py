@@ -158,12 +158,12 @@ class RobotDescription(ABC):
 
     def addLinkDynamics(self, matrix, mass, com, inertia):
         # Inertia
-        I = np.matrix(np.reshape(inertia[:9], (3, 3)))
-        R = matrix[:3, :3]
+        inertia_mtx = np.matrix(np.reshape(inertia[:9], (3, 3)))
+        rotation = matrix[:3, :3]
         # Expressing COM in the link frame
         com = np.array((matrix * np.matrix([com[0], com[1], com[2], 1]).T).T)[0][:3]
         # Expressing inertia in the link frame
-        inertia = R.T * I * R
+        inertia = rotation.T * inertia_mtx * rotation
 
         self._dynamics.append({"mass": mass, "com": com, "inertia": inertia})
 
@@ -576,7 +576,10 @@ class RobotSDF(RobotDescription):
         )
         self.append("<mass>%g</mass>" % mass)
         self.append(
-            "<inertia><ixx>%g</ixx><ixy>%g</ixy><ixz>%g</ixz><iyy>%g</iyy><iyz>%g</iyz><izz>%g</izz></inertia>"
+            (
+                "<inertia><ixx>%g</ixx><ixy>%g</ixy><ixz>%g</ixz>"
+                "<iyy>%g</iyy><iyz>%g</iyz><izz>%g</izz></inertia>"
+            )
             % (
                 inertia[0, 0],
                 inertia[0, 1],
@@ -696,7 +699,10 @@ class RobotSDF(RobotDescription):
                             )
                         if shape["type"] == "cylinder":
                             self.append(
-                                "<cylinder><length>%g</length><radius>%g</radius></cylinder>"
+                                (
+                                    "<cylinder><length>%g</length>"
+                                    "<radius>%g</radius></cylinder>"
+                                )
                                 % tuple(shape["parameters"])
                             )
                         if shape["type"] == "sphere":

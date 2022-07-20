@@ -1,11 +1,5 @@
-"""
-client
-======
+"""Convenience functions for working with the Onshape API."""
 
-Convenience functions for working with the Onshape API
-"""
-
-import hashlib
 import json
 import mimetypes
 import os
@@ -385,18 +379,17 @@ class Client:
         if self.use_collisions_configurations:
             configuration_before = configuration
             parts = configuration.split(";")
-            partIdChanged = False
-            result = ""
+            part_id_changed = False
             for k, part in enumerate(parts):
                 kv = part.split("=")
                 if len(kv) == 2:
                     if kv[0] == "collisions":
                         kv[1] = "true"
-                        partIdChanged = True
+                        part_id_changed = True
                 parts[k] = "=".join(kv)
             configuration = ";".join(parts)
 
-            if partIdChanged:
+            if part_id_changed:
                 partid = self.find_new_partid(
                     did, mid, eid, partid, configuration_before, configuration
                 )

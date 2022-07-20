@@ -1,7 +1,6 @@
 import argparse
 import math
 import os
-import sys
 import time
 
 import pybullet as p

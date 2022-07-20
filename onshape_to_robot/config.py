@@ -84,7 +84,8 @@ class Config:
 
         if not os.path.exists(config_path):
             print(
-                f"{Fore.RED}ERROR: Config file {config_path} not found.{Style.RESET_ALL}"
+                f"{Fore.RED}ERROR: Config file {config_path} not found."
+                + Style.RESET_ALL
             )
             sys.exit(1)
         with open(config_path, "r", encoding="utf8") as stream:

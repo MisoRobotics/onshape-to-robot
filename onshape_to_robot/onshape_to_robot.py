@@ -2,8 +2,6 @@ import functools
 import hashlib
 import os
 import re
-import sys
-from copy import copy
 from pathlib import Path
 from sys import exit
 from typing import (
@@ -13,9 +11,7 @@ from typing import (
 
 import commentjson as json
 import numpy as np
-import onshape_client
 from colorama import (
-    Back,
     Fore,
     Style,
 )
@@ -185,7 +181,9 @@ def main():
             stlFile = None
         else:
             stlFile = robot.meshDir / (prefix.replace("/", "_") + ".stl")
-            # shorten the configuration to a maximum number of chars to prevent errors. Necessary for standard parts like screws
+            # shorten the configuration to a maximum number of chars to prevent errors.
+            # Necessary for standard parts like screws
+            # TODO(RWS): Hashing seems fairly opaque.
             if len(part["configuration"]) > 40:
                 shortend_configuration = hashlib.md5(
                     part["configuration"].encode("utf-8")
@@ -302,7 +300,8 @@ def main():
         del parts[-1]
         basePartName = "_".join(parts).lower()
 
-        # only add configuration to name if its not default and not a very long configuration (which happens for library parts like screws)
+        # only add configuration to name if its not default and not a very long
+        # configuration (which happens for library parts like screws)
         if configuration != "default" and len(configuration) < 40:
             parts += ["_" + configuration.replace("=", "_").replace(" ", "_")]
 
@@ -344,7 +343,8 @@ def main():
             instance["name"], instance["configuration"], occurrence["linkName"]
         )
 
-        # Create the link, collecting all children in the tree assigned to this top-level part
+        # Create the link, collecting all children in the tree assigned to this
+        # top-level part.
         robot.startLink(link, matrix)
         for occurrence in occurrences.values():
             if (
@@ -367,7 +367,6 @@ def main():
         )
 
         # Following the children in the tree, calling this function recursively
-        k = 0
         for child in tree["children"]:
             worldAxisFrame = child["axis_frame"]
             zAxis = child["z_axis"]
@@ -378,8 +377,8 @@ def main():
                 axisFrame = np.linalg.inv(matrix) * worldAxisFrame
                 childMatrix = worldAxisFrame
             else:
-                # In SDF format, everything is expressed in the world frame, in this case
-                # childMatrix will be always identity
+                # In SDF format, everything is expressed in the world frame.
+                # In this case, childMatrix will always be the identity matrix.
                 axisFrame = worldAxisFrame
                 childMatrix = matrix
 

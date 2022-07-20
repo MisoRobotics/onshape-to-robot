@@ -1,13 +1,8 @@
-import dataclasses
-import math
-import sys
-import uuid
 from collections import defaultdict
 from typing import Final
 
 import numpy as np
 from colorama import (
-    Back,
     Fore,
     Style,
 )
@@ -17,10 +12,7 @@ from onshape_to_robot.config import load_config
 from onshape_to_robot.features import FeatureSource
 from onshape_to_robot.features import init as features_init
 
-from .onshape_api.client import (
-    Client,
-    get_assembly_from_url,
-)
+from .onshape_api.client import Client
 
 config = load_config()
 configFile = config.configPath
@@ -57,9 +49,11 @@ assemblyId = element.eid
 
 print(f"\n{Style.BRIGHT}* Retrieved assembly '{assemblyName}'.{Style.RESET_ALL}")
 
-# Finds a (leaf) instance given the full path, typically A B C where A and B would be subassemblies and C
-# the final part
+
 def findInstance(path, instances=None):
+    # Finds a (leaf) instance given the full path, typically A B C where A and B would
+    # be subassemblies and C the final part
+
     global assembly
 
     if instances is None:
@@ -68,10 +62,12 @@ def findInstance(path, instances=None):
     for instance in instances:
         if instance["id"] == path[0]:
             if len(path) == 1:
-                # If the length of remaining path is 1, the part is in the current assembly/subassembly
+                # If the length of remaining path is 1, the part is in the current
+                # assembly/subassembly
                 return instance
             else:
-                # Else, we need to find the matching sub assembly to find the proper part (recursively)
+                # Else, we need to find the matching sub assembly to find the proper
+                # part (recursively)
                 d = instance["documentId"]
                 m = instance["documentMicroversion"]
                 e = instance["elementId"]
@@ -114,14 +110,14 @@ def getOccurrence(path):
     return occurrences[tuple(path)]
 
 
-# Assignations are pieces that will be in the same link. Note that this is only for top-level
-# item of the path (all sub assemblies and parts in assemblies are naturally in the same link as
-# the parent), but other parts that can be connected with mates in top assemblies are then assigned to
-# the link
+# Assignations are pieces that will be in the same link. Note that this is only for
+# top-level item of the path (all sub assemblies and parts in assemblies are naturally
+# in the same link as the parent), but other parts that can be connected with mates in
+# top assemblies are then assigned to the link.
 assignations = {}
 
-# Frames (mated with frame_ name) will be special links in the output file allowing to track some specific
-# manually identified frames
+# Frames (mated with frame_ name) will be special links in the output file allowing to
+# track some specific manually identified frames
 frames = defaultdict(list)
 
 
@@ -210,7 +206,7 @@ for feature in features:
                     + ""
                 )
                 print(
-                    "       Only REVOLUTE, CYLINDRICAL, SLIDER and FASTENED are supported"
+                    "   Only REVOLUTE, CYLINDRICAL, SLIDER and FASTENED are supported"
                     + Style.RESET_ALL
                 )
                 exit(1)
@@ -283,7 +279,8 @@ for feature in features:
                 )
                 print("Be sure you ordered properly your relations, see:")
                 print(
-                    "https://onshape-to-robot.readthedocs.io/en/latest/design.html#specifying-degrees-of-freedom"
+                    "https://onshape-to-robot.readthedocs.io/en/latest/design.html"
+                    "#specifying-degrees-of-freedom"
                 )
                 print(Style.RESET_ALL)
                 exit()
@@ -323,9 +320,10 @@ def appendFrame(key, frame):
 
 
 # Spreading parts assignations, this parts mainly does two things:
-# 1. Finds the parts of the top level assembly that are not directly in a sub assembly and try to assign them
-#    to an existing link that was identified before
-# 2. Among those parts, finds the ones that are frames (connected with a frame_* connector)
+# 1. Finds the parts of the top level assembly that are not directly in a sub assembly
+#    and try to assign them to an existing link that was identified before
+# 2. Among those parts, finds the ones that are frames (connected with a frame_*
+#     connector)
 changed = True
 while changed:
     changed = False

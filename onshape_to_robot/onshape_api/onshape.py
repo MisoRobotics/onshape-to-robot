@@ -32,8 +32,7 @@ __all__ = ["Onshape"]
 
 
 class Onshape:
-    """
-    Provides access to the Onshape REST API.
+    """Provides access to the Onshape REST API.
 
     Attributes:
         - stack (str): Base URL
@@ -42,9 +41,9 @@ class Onshape:
     """
 
     def __init__(self, stack, creds="./config.json", logging=True):
-        """
-        Instantiates an instance of the Onshape class. Reads credentials from a JSON file
-        of this format:
+        """Construct a new Onshape.
+
+        Reads credentials from a JSON file of this format:
 
             {
                 "http://cad.onshape.com": {
@@ -95,7 +94,8 @@ class Onshape:
                 print()
                 print(
                     Fore.BLUE
-                    + "TIP: Connect to https://dev-portal.onshape.com/keys, and edit your .bashrc file:"
+                    + "TIP: Connect to https://dev-portal.onshape.com/keys, and edit "
+                    + " your .bashrc file:"
                     + Style.RESET_ALL
                 )
                 print(
@@ -260,7 +260,8 @@ class Onshape:
             - query (dict, default={}): Query params in key-value pairs
             - headers (dict, default={}): Key-value pairs of headers
             - body (dict, default={}): Body for POST request
-            - base_url (str, default=None): Host, including scheme and port (if different from creds file)
+            - base_url (str, default=None): Host, including scheme and port (if
+              different from creds file)
 
         Returns:
             - requests.Response: Object containing the response from Onshape
