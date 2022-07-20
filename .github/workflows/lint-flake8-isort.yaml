@@ -1,0 +1,20 @@
+---
+name: lint-flake8-isort
+
+on: [push]
+
+jobs:
+  lint-flake8-isort:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v2
+      - name: Set up Python environment
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+      - name: Install dependencies
+        run: |
+          pip install -U flake8-black flake8-isort
+      - name: Check syntax (flake8-black + flake8-isort)
+        uses: py-actions/flake8@v2
