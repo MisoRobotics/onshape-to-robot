@@ -30,6 +30,11 @@ from .robot_description import (
     RobotURDF,
 )
 
+try:
+    import cPickle as pickle
+except:
+    import pickle
+
 
 def main():
     # Loading configuration, collecting occurrences and building robot tree
@@ -96,9 +101,16 @@ def main():
     def _get_parts(
         did: str, mid: str, eid: str, configuration: str = ""
     ) -> Dict[str, BTPartMetadataInfo]:
-        parts = client._api.onshape_client.parts_api.get_parts_wmve(
-            did, "m", mid, eid, configuration=configuration
+        parts = client._cache.get_or_add(
+            "parts_api.get_parts_wmve",
+            (did, "m", mid, eid, configuration),
+            lambda: client._api.onshape_client.parts_api.get_parts_wmve(
+                did, "m", mid, eid, configuration=configuration
+            ),
+            serialize=lambda x: pickle.dumps(x),
+            deserialize=lambda x: pickle.loads(x),
         )
+
         return {p.part_id: p for p in parts}
 
     @functools.lru_cache()

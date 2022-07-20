@@ -2,6 +2,7 @@
 from pathlib import Path
 from typing import (
     Callable,
+    Optional,
     Tuple,
     Union,
 )
@@ -43,7 +44,13 @@ class OnshapeCache:
         self.session = sessionmaker(bind=engine)()
 
     def get_or_add(
-        self, method: str, key: Union[str, Tuple], callback: Callable, is_string=False
+        self,
+        method: str,
+        key: Union[str, Tuple],
+        callback: Callable,
+        is_string=False,
+        serialize: Optional[Callable] = None,
+        deserialize: Optional[Callable] = None,
     ) -> Union[str, bytes]:
         """Retrieve an object from the cache or produce it with the callback."""
         if isinstance(key, tuple):
@@ -55,13 +62,21 @@ class OnshapeCache:
                 .one()
             )
             result = query.text if is_string else query.blob
+            if deserialize is not None:
+                result = deserialize(result)
         except NoResultFound:
-            result = callback().content
+            result = callback()
+            try:
+                result = result.content
+            except AttributeError:
+                pass
             if is_string:
                 if isinstance(result, bytes):
                     result = result.decode("utf-8")
                 self.session.add(Cache(method=method, key=key, text=result))
             else:
+                if serialize is not None:
+                    result = serialize(result)
                 self.session.add(Cache(method=method, key=key, blob=result))
             self.session.commit()
         return result
