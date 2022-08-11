@@ -103,6 +103,7 @@ class Onshape():
             "secret_key": self._secret_key,
         }
         self.onshape_client = OnshapeClient(configuration=client_config)
+        self.onshape_client.configuration.discard_unknown_keys = True
 
     def _make_nonce(self):
         '''
