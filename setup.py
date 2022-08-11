@@ -5,7 +5,7 @@ with open("README-pypi.md", "r", encoding="utf-8") as stream:
 
 setuptools.setup(
     name="onshape-to-robot",
-    version="0.3.15~0misorobotics10",
+    version="0.3.15~0misorobotics11",
     author="Rhoban team",
     author_email="team@rhoban.com",
     description=(
