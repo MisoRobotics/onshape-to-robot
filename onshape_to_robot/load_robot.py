@@ -14,6 +14,9 @@ from onshape_to_robot.features import init as features_init
 
 from .onshape_api.client import Client
 
+
+VERBOSITY = 3
+
 config = load_config()
 configFile = config.configPath
 
@@ -125,11 +128,16 @@ def assignParts(root, parent):
     assignations[root] = parent
     for occurrence in occurrences.values():
         if occurrence["path"][0] == root:
-            occurrence["assignation"] = parent
+            if occurrence["assignation"] == parent:
+                return False
+            else:
+                occurrence["assignation"] = parent
+                print(f"Assigning root {root} to parent {parent}")
+                return True
 
 
 def connectParts(child, parent):
-    assignParts(child, parent)
+    return assignParts(child, parent)
 
 
 # Scan mates and mate connectors for specific names.
@@ -324,14 +332,28 @@ def appendFrame(key, frame):
 #    and try to assign them to an existing link that was identified before
 # 2. Among those parts, finds the ones that are frames (connected with a frame_*
 #     connector)
+
+iteration = 1
+print(features)
 changed = True
-while changed:
+while changed and iteration < 5:
+    print(f"\n\n=== ITERATION {iteration} ===\n\n")
+    iteration += 1
     changed = False
     for feature in features:
-        if feature["featureType"] != "mate" or feature["suppressed"]:
+        if feature["suppressed"]:
             continue
 
         data = feature["featureData"]
+        if feature["featureType"] == "mateGroup":
+            if any([trunk == o["occurrence"][0] for o in data["occurrences"]]):
+                for occurrence in data["occurrences"]:
+                    child = occurrence["occurrence"][0]
+                    if child != trunk:
+                        changed |= connectParts(child, trunk)
+
+        if feature["featureType"] != "mate":
+            continue
 
         if (
             len(data["matedEntities"]) != 2
@@ -346,21 +368,42 @@ while changed:
                         f"{len(data['matedEntities'])} instead). This can "
                         "happen if you use Mate Connectors defined in a Part "
                         "Studio instead of in an assembly. Try adding Mate "
-                        "Connectors to a subassembly or the root assembly "
+                        "Connectors to a subassembly or the r`oo`t assembly "
                         "and use them in the mate relation."
                     )
             except IndexError:
                 pass
             continue
 
+        is_frame = data["name"].startswith("frame_")
+        if is_frame:
+            name = "_".join(data["name"].split("_")[1:])
+
         occurrenceA = data["matedEntities"][0]["matedOccurrence"][0]
         occurrenceB = data["matedEntities"][1]["matedOccurrence"][0]
 
+        # if VERBOSITY >= 3:
+        #     if is_frame:
+        #         print(
+        #             f"FRAME {name} DETECTED.\ndata:\n{data}\n\nAssignations:\n{assignations}\n\n"
+        #         )
         if occurrenceA in assignations and occurrenceB not in assignations:
             parent_index, child_index = 0, 1
+            print(
+                f"A found for {data['name']}! A: {occurrenceA}, B: {occurrenceB}, all: {assignations}, trunk: {trunk}"
+            )
         elif occurrenceA not in assignations and occurrenceB in assignations:
             parent_index, child_index = 1, 0
+            print(
+                f"B found for {data['name']}! A: {occurrenceA}, B: {occurrenceB}, all: {assignations}, trunk: {trunk}"
+            )
+        elif occurrenceA not in assignations and occurrenceB not in assignations:
+            print(
+                f"Neither occurrence for {data['name']} found in assignations! A: {occurrenceA}, B: {occurrenceB}, all: {assignations}, trunk: {trunk}"
+            )
+            continue
         else:
+            print(f"Frame {name} already added.")
             continue
 
         changed = True
@@ -372,10 +415,16 @@ while changed:
         child_path = data["matedEntities"][child_index]["matedOccurrence"]
         child_root_id = child_path[0]
 
-        if data["name"][0:5] == "frame":
-            name = "_".join(data["name"].split("_")[1:])
-            appendFrame(parent_id, [name, child_path])
-            parent = assignations[parent_id] if config["drawFrames"] else "frame"
+        if is_frame:
+            full_parent = occurrenceById[
+                data["matedEntities"][parent_index]["matedOccurrence"][-1]
+            ]
+            print(full_parent)
+            print(f"appendFrame({parent_id or trunk}, {[name, child_path]})")
+            appendFrame(parent_id or trunk, [name, child_path])
+            parent = (
+                assignations[parent_id or trunk] if config["drawFrames"] else "frame"
+            )
             assignParts(child_root_id, parent)
         else:
             if occurrenceA in assignations:
@@ -383,7 +432,6 @@ while changed:
 
             else:
                 connectParts(occurrenceA, assignations[occurrenceB])
-
 
 # Building and checking robot tree, here we:
 # 1. Search for robot trunk (which will be the top-level link)
@@ -418,23 +466,6 @@ for child, root in assignations.items():
             )
         root_occurrence["linkName"] = child_name
         print(f"Renamed {occurrenceNameById[root][0]} to '{child_name}'.")
-
-trunkOccurrence = getOccurrence([trunk])
-print(
-    Style.BRIGHT + "* Trunk is " + trunkOccurrence["instance"]["name"] + Style.RESET_ALL
-)
-
-for occurrence in occurrences.values():
-    if occurrence["assignation"] is None:
-        print(
-            Fore.YELLOW
-            + "WARNING: part ("
-            + occurrence["instance"]["name"]
-            + ") has no assignation, connecting it with trunk"
-            + Style.RESET_ALL
-        )
-        child = occurrence["path"][0]
-        connectParts(child, trunk)
 
 
 def collect(id):
