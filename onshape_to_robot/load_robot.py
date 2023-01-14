@@ -125,11 +125,15 @@ def assignParts(root, parent):
     assignations[root] = parent
     for occurrence in occurrences.values():
         if occurrence["path"][0] == root:
-            occurrence["assignation"] = parent
+            if occurrence["assignation"] == parent:
+                return False
+            else:
+                occurrence["assignation"] = parent
+                return True
 
 
 def connectParts(child, parent):
-    assignParts(child, parent)
+    return assignParts(child, parent)
 
 
 # Scan mates and mate connectors for specific names.
@@ -328,10 +332,19 @@ changed = True
 while changed:
     changed = False
     for feature in features:
-        if feature["featureType"] != "mate" or feature["suppressed"]:
+        if feature["suppressed"]:
             continue
 
         data = feature["featureData"]
+        if feature["featureType"] == "mateGroup":
+            if any([trunk == o["occurrence"][0] for o in data["occurrences"]]):
+                for occurrence in data["occurrences"]:
+                    child = occurrence["occurrence"][0]
+                    if child != trunk:
+                        changed |= connectParts(child, trunk)
+
+        if feature["featureType"] != "mate":
+            continue
 
         if (
             len(data["matedEntities"]) != 2
@@ -353,6 +366,10 @@ while changed:
                 pass
             continue
 
+        is_frame = data["name"].startswith("frame_")
+        if is_frame:
+            name = "_".join(data["name"].split("_")[1:])
+
         occurrenceA = data["matedEntities"][0]["matedOccurrence"][0]
         occurrenceB = data["matedEntities"][1]["matedOccurrence"][0]
 
@@ -372,8 +389,8 @@ while changed:
         child_path = data["matedEntities"][child_index]["matedOccurrence"]
         child_root_id = child_path[0]
 
-        if data["name"][0:5] == "frame":
-            name = "_".join(data["name"].split("_")[1:])
+        if is_frame:
+            parent_id = parent_id or trunk
             appendFrame(parent_id, [name, child_path])
             parent = assignations[parent_id] if config["drawFrames"] else "frame"
             assignParts(child_root_id, parent)
