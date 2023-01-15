@@ -106,8 +106,32 @@ FEATURES: FeatureSource = FeatureSource(client._api.onshape_client, element)
 def getOccurrence(path):
     """Get an occurrence from its full path."""
     if isinstance(path, str):
-        path = (path,)
-    return occurrences[tuple(path)]
+        path = tuple((path,))
+    try:
+        return occurrences[tuple(path)]
+    except KeyError:
+        return occurrenceById[path[-1]]
+
+
+def occurrence_is_suppressed(path):
+    """Return true if an occurrence is suppressed.
+
+    An occurrence should be considered suppressed if is marked as
+    suppressed OR if its parent or its parent's parent (and so on up the
+    chain to the root assembly) is marked suppressed.
+
+    Args:
+        path (tuple(str)): The path of the occurrence from its own id
+            up to the root assembly.
+
+    Returns:
+        bool: True if the occurrence is suppressed; false otherwise.
+    """
+    this_occurrence = getOccurrence(path)
+    for this_occurrence_id in this_occurrence["path"]:
+        if occurrenceById[this_occurrence_id]["instance"]["suppressed"]:
+            return True
+    return False
 
 
 # Assignations are pieces that will be in the same link. Note that this is only for
@@ -123,13 +147,12 @@ frames = defaultdict(list)
 
 def assignParts(root, parent):
     assignations[root] = parent
-    for occurrence in occurrences.values():
-        if occurrence["path"][0] == root:
-            if occurrence["assignation"] == parent:
-                return False
-            else:
-                occurrence["assignation"] = parent
-                return True
+    root_occ = occurrenceById[root]
+    if root_occ["assignation"] == parent:
+        return False
+    else:
+        root_occ["assignation"] = parent
+        return True
 
 
 def connectParts(child, parent):
@@ -153,7 +176,8 @@ for feature in features:
             links[name] = path
             print(f"{Fore.GREEN}+ Found link: {name}{Style.RESET_ALL}")
         elif name == "trunk":
-            tagged_trunk = path[0]
+            print(f"{Fore.GREEN}+ Found tagged trunk: {name}{Style.RESET_ALL}")
+            tagged_trunk = path[-1]
     else:
         if feature["suppressed"]:
             continue
@@ -344,10 +368,21 @@ while changed:
                     break
             if parent is None:
                 continue
-            for occurrence in data["occurrences"]:
-                child = occurrence["occurrence"][0]
+            connectParts(parent, parent)
+            for occurrence in occurrences.values():
+                if occurrence_is_suppressed(occurrence["path"]):
+                    continue
+                if occurrence["path"][0] != parent:
+                    continue
+                child = occurrence["instance"]["id"]
                 if child != parent:
                     changed |= connectParts(child, parent)
+                    if changed:
+                        child_name = occurrenceById[child]["instance"]["name"]
+                        parent_name = occurrenceById[parent]["instance"]["name"]
+                        print(
+                            f"Connected {child_name} ({child}) to {parent_name} ({parent})"
+                        )
 
         if feature["featureType"] != "mate":
             continue
@@ -448,16 +483,23 @@ print(
 )
 
 for occurrence in occurrences.values():
-    if occurrence["assignation"] is None:
-        print(
-            Fore.YELLOW
-            + "WARNING: part ("
-            + occurrence["instance"]["name"]
-            + ") has no assignation, connecting it with trunk"
-            + Style.RESET_ALL
-        )
-        child = occurrence["path"][0]
-        connectParts(child, trunk)
+    if occurrence["assignation"] is not None:
+        continue
+    if occurrence_is_suppressed(occurrence["path"]):
+        continue
+
+    name = occurrence["instance"]["name"]
+    parent = occurrence["instance"]["id"]
+    if parent not in assignations:
+        parent = trunk
+
+    parent_name = occurrenceNameById[parent]
+    print(
+        f"{Fore.YELLOW}WARNING: part ({name}) has no assignation, "
+        f"connecting it with {parent_name}{Style.RESET_ALL}"
+    )
+    child = occurrence["instance"]["id"]
+    connectParts(child, parent)
 
 
 def collect(id):

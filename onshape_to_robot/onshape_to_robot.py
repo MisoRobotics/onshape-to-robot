@@ -270,7 +270,7 @@ def main():
                     mass = massProperties["mass"][0]
                     com = massProperties["centroid"]
                     inertia = massProperties["inertia"]
-                except IndexError:
+                except (KeyError, IndexError):
                     # The part of type Surface has no mass properties.
                     mass = 1e-4
                     com = [0] * 3
@@ -352,6 +352,12 @@ def main():
                 and occurrence["instance"]["type"] == "Part"
             ):
                 addPart(occurrence, matrix)
+            elif occurrence["assignation"] is not None:
+                print(
+                    f"Skipping occurrence {occurrence['instance']['name']} "
+                    f"for tree {tree['id']} with assignation "
+                    f"{occurrence['assignation']} and path {occurrence['path']}"
+                )
         robot.endLink()
 
         # Adding the frames (linkage is relative to parent)
