@@ -334,9 +334,12 @@ print(
     f"{len(links)} named link(s).{Style.RESET_ALL}"
 )
 
+# The tagged trunk should take precedence.
+trunk = trunk or tagged_trunk
+
 # If we have no DOF
 if len(relations) == 0:
-    trunk = tagged_trunk or root["instances"][0]["id"]
+    trunk = trunk or root["instances"][0]["id"]
     assignParts(trunk, trunk)
 
 
