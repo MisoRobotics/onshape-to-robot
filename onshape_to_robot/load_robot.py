@@ -340,6 +340,7 @@ trunk = trunk or tagged_trunk
 # If we have no DOF
 if len(relations) == 0:
     trunk = trunk or root["instances"][0]["id"]
+if trunk:
     assignParts(trunk, trunk)
 
 
@@ -492,7 +493,7 @@ for occurrence in occurrences.values():
         continue
 
     name = occurrence["instance"]["name"]
-    parent = occurrence["instance"]["id"]
+    parent = occurrence["path"][0]
     if parent not in assignations:
         parent = trunk
 
