@@ -130,6 +130,17 @@ class RobotDescription(ABC):
     def append(self, str):
         self.xml += str + "\n"
 
+    def append_mimic_joint(self, name: str):
+        """Append a mimic joint tag if joint name ends in _mimic.
+
+        Args:
+            name: Full name of the joint.
+
+        """
+        suffix = "_mimic"
+        if name.endswith(suffix):
+            self.append(f'<mimic joint="{name[:-len(suffix)]}" />')
+
     def jointMaxEffortFor(self, jointName):
         if isinstance(self.jointMaxEffort, dict):
             if jointName in self.jointMaxEffort:
@@ -460,6 +471,8 @@ class RobotURDF(RobotDescription):
         self.append('<parent link="' + linkFrom + '" />')
         self.append('<child link="' + linkTo + '" />')
         self.append('<axis xyz="%g %g %g"/>' % tuple(zAxis))
+        self.append_mimic_joint(name)
+
         lowerUpperLimits = ""
         if jointLimits is not None:
             lowerUpperLimits = 'lower="%g" upper="%g"' % jointLimits
@@ -739,6 +752,7 @@ class RobotSDF(RobotDescription):
             )
         )
         self.append("</axis>")
+        self.append_mimic_joint(name)
         self.append("</joint>")
         self.append("")
         # print('Joint from: '+linkFrom+' to: '+linkTo+', transform: '+str(transform))
