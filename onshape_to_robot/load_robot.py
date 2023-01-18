@@ -1,3 +1,4 @@
+import sys
 from collections import defaultdict
 from typing import Final
 
@@ -7,7 +8,6 @@ from colorama import (
     Style,
 )
 from onshape_client import OnshapeElement
-
 from onshape_to_robot.config import load_config
 from onshape_to_robot.features import FeatureSource
 from onshape_to_robot.features import init as features_init
@@ -206,7 +206,7 @@ for feature in features:
             if name == "":
                 print(
                     Fore.RED
-                    + "ERROR: a DOF dones't have any name (\""
+                    + "ERROR: a DOF doesn't have any name (\""
                     + data["name"]
                     + '" should be "dof_...")'
                     + Style.RESET_ALL
@@ -237,7 +237,7 @@ for feature in features:
                     "   Only REVOLUTE, CYLINDRICAL, SLIDER and FASTENED are supported"
                     + Style.RESET_ALL
                 )
-                exit(1)
+                sys.exit(1)
 
             # We compute the axis in the world frame
             matedEntity = data["matedEntities"][0]
@@ -311,7 +311,7 @@ for feature in features:
                     "#specifying-degrees-of-freedom"
                 )
                 print(Style.RESET_ALL)
-                exit()
+                sys.exit(1)
 
             relations[child] = {
                 "parent": parent,
@@ -324,6 +324,7 @@ for feature in features:
 
             assignParts(child, child)
             assignParts(parent, parent)
+            print(assignations)
 
 if tagged_trunk:
     trunk_name = getOccurrence([tagged_trunk])["linkName"]
@@ -345,6 +346,7 @@ if trunk:
 
 
 def appendFrame(key, frame):
+    print(key, frame)
     child_name = occurrenceNameById[frame[1][-1]][0]
     parent_name = occurrenceNameById[key][0]
     print(f"- Appending {child_name} as frame {frame[0]} to {parent_name}")
@@ -411,6 +413,8 @@ while changed:
                 pass
             continue
 
+        print(f"{Fore.BLUE}GOT EM {data['name']}{Style.RESET_ALL}")
+
         is_frame = data["name"].startswith("frame_")
         if is_frame:
             name = "_".join(data["name"].split("_")[1:])
@@ -423,6 +427,11 @@ while changed:
         elif occurrenceA not in assignations and occurrenceB in assignations:
             parent_index, child_index = 1, 0
         else:
+            print(f"{Fore.GREEN}Skipping {data['name']}{Style.RESET_ALL}")
+            print(
+                data["matedEntities"][0]["matedOccurrence"],
+                data["matedEntities"][1]["matedOccurrence"],
+            )
             continue
 
         changed = True
@@ -436,10 +445,12 @@ while changed:
 
         if is_frame:
             parent_id = parent_id or trunk
+            print(data)
             appendFrame(parent_id, [name, child_path])
             parent = assignations[parent_id] if config["drawFrames"] else "frame"
             assignParts(child_root_id, parent)
         else:
+            print(f"{Fore.CYAN}connecting name {data['name']}{Style.RESET_ALL}")
             if occurrenceA in assignations:
                 connectParts(occurrenceB, assignations[occurrenceA])
 
@@ -462,7 +473,6 @@ for childId in relations:
 
 print(f"Found {len(possible_trunks)} possible trunks.")
 trunk = trunk or possible_trunks[0]
-print(f"Selected trunk: '{occurrenceNameById[trunk][0]}'")
 
 # Go through each occurrence and bubble up link name.
 for child, root in assignations.items():
@@ -480,6 +490,12 @@ for child, root in assignations.items():
             )
         root_occurrence["linkName"] = child_name
         print(f"Renamed {occurrenceNameById[root][0]} to '{child_name}'.")
+
+print(
+    f"{Style.BRIGHT}{Fore.GREEN}Selected trunk: "
+    f"{getOccurrence(trunk)['linkName']} ({occurrenceNameById[trunk][0]})"
+    f"{Style.RESET_ALL}"
+)
 
 trunkOccurrence = getOccurrence([trunk])
 print(
@@ -506,21 +522,67 @@ for occurrence in occurrences.values():
     connectParts(child, parent)
 
 
+def occurrence_to_string(occurrence_id) -> None:
+    occurrence = getOccurrence(occurrence_id)
+    instance = occurrence["instance"]
+    return (
+        "\n------------------------------------\n"
+        f"Occurrence {instance['id']} ({instance['name']}):\n"
+        f"linkName: {occurrence['linkName']}"
+        "------------------------------------\n"
+    )
+
+
+# TODO(RWS): Reassign self-assigned relation pieces to trunk.
+# connectParts("MIaWD+933G5vBSdQX", "MqYmsK/14aAVfo/kf")
+
+
 def collect(id):
+    print(f"id: {id}")
     part = {}
     part["id"] = id
     part["children"] = []
-    for childId in relations:
-        entry = relations[childId]
+    print(f"relations: {relations}")
+    for child_id, entry in relations.items():
+        print(f"FOOO: {child_id}")
+        print(getOccurrence(child_id))
+        print(f"entry: {entry}")
+        print(f"parent: {getOccurrence(entry['parent'])}")
+        # It is a parent of not the parent
+        print(getOccurrence(id))
+        print(getOccurrence(getOccurrence(assignations[entry["parent"]])["path"][0]))
+        print(assignations)
+        print(f"ENTRYPARENTID? {entry['parent'] == id}")
+
         if entry["parent"] == id:
-            child = collect(childId)
+            child = collect(child_id)
             child["axis_frame"] = entry["worldAxisFrame"]
             child["z_axis"] = entry["zAxis"]
             child["dof_name"] = entry["name"]
             child["jointType"] = entry["type"]
             child["jointLimits"] = entry["limits"]
             part["children"].append(child)
+
     return part
 
 
+print(f"{Fore.RED}Collecting tree parts{Style.RESET_ALL}")
+
 tree = collect(trunk)
+
+print(f"tree: {tree}")
+
+# for x in (
+#     "MIaWD+933G5vBSdQX",
+#     "MyDWWi0z8KSxK4RMO",
+#     "MqYmsK/14aAVfo/kf",
+#     "MyAovOZBMf2ba8HYc",
+# ):
+#     occurrence = occurrenceById[x]
+#     print(
+#         f"\n{Fore.GREEN}{x} ({occurrence['instance']['name']}):{Style.RESET_ALL}\n{occurrence}"
+#     )
+
+# print(assignations)
+
+sys.exit(0)

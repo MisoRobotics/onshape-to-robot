@@ -402,6 +402,7 @@ def main():
         return link
 
     # Start building the robot
+    print(f"tree: {tree}")
     buildRobot(tree, np.matrix(np.identity(4)))
     robot.finalize()
     # print(tree)
