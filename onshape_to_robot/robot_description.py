@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+from colorama import (
+    Fore,
+    Style,
+)
 from lxml import etree
 
 from . import stl_combine
@@ -484,9 +488,12 @@ class RobotURDF(RobotDescription):
                 lowerUpperLimits,
             )
         )
-        self.append('<joint_properties friction="0.0"/>')
         self.append("</joint>")
         self.append("")
+        print(
+            f"{Fore.LIGHTMAGENTA_EX} + Adding joint {linkFrom} -> {linkTo}"
+            f"{Style.RESET_ALL}"
+        )
 
     def finalize(self):
         self.append(self.additionalXML)
@@ -755,7 +762,10 @@ class RobotSDF(RobotDescription):
         self.append_mimic_joint(name)
         self.append("</joint>")
         self.append("")
-        # print('Joint from: '+linkFrom+' to: '+linkTo+', transform: '+str(transform))
+        print(
+            f"{Fore.LIGHTMAGENTA_EX} + Adding joint {linkFrom} -> {linkTo}"
+            f"{Style.RESET_ALL}"
+        )
 
     def finalize(self):
         self.append(self.additionalXML)
