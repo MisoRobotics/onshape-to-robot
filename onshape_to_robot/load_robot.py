@@ -7,7 +7,6 @@ from colorama import (
     Style,
 )
 from onshape_client import OnshapeElement
-
 from onshape_to_robot.config import load_config
 from onshape_to_robot.features import FeatureSource
 from onshape_to_robot.features import init as features_init
@@ -169,7 +168,13 @@ features = root["features"]
 for feature in features:
     if feature["featureType"] == "mateConnector":
         name = feature["featureData"]["name"]
-        path = (feature["featureData"]["occurrence"][0],)
+        print(feature["featureData"])
+        try:
+            path = (feature["featureData"]["occurrence"][0],)
+        except IndexError:
+            # NOTE: Mate connectors on the origin have no occurrence.
+            print(f"{Fore.YELLOW}Skipping mate connector {name}{Style.RESET_ALL}")
+            continue
         if name.startswith("link_"):
             name = name[len("link_") :]
             occurrences[path]["linkName"] = name

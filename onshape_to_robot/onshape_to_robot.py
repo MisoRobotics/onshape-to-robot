@@ -180,7 +180,7 @@ def main():
         elif material_tags_only and not material_tag:
             stlFile = None
         else:
-            stlFile = robot.meshDir / (prefix.replace("/", "_") + ".stl")
+            stlFile = robot.meshDir / (prefix.replace("/", "_").replace(";", "_") + ".stl")
             # shorten the configuration to a maximum number of chars to prevent errors.
             # Necessary for standard parts like screws
             # TODO(RWS): Hashing seems fairly opaque.
@@ -214,17 +214,20 @@ def main():
                     config["pureShapeDilatation"],
                 )
 
-        # Obtain metadatas about part to retrieve color
+        # Obtain metadata about part to retrieve color
         if config["color"] is not None:
             color = config["color"]
         else:
-            metadata = client.part_get_metadata(
-                part["documentId"],
-                part["documentMicroversion"],
-                part["elementId"],
-                part["partId"],
-                part["configuration"],
-            )
+            try:
+                metadata = client.part_get_metadata(
+                    part["documentId"],
+                    part["documentMicroversion"],
+                    part["elementId"],
+                    part["partId"],
+                    part["configuration"],
+                )
+            except KeyError:
+                metadata = {}
             if "appearance" in metadata:
                 colors = metadata["appearance"]["color"]
                 alpha = metadata["appearance"]["opacity"]
@@ -234,7 +237,7 @@ def main():
                 )
                 print(f"Part {part['name']} has color {color}.")
             else:
-                color = [0.5, 0.5, 0.5, 1.0]
+                color = [1.0, 0.0, 0.0, 1.0]
 
         # Obtain mass properties about that part
         if config["noDynamics"]:

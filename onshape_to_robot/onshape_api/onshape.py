@@ -314,10 +314,10 @@ class Onshape:
             )
         elif not 200 <= res.status_code <= 206:
             print(url)
-            print("! ERROR (" + str(res.status_code) + ") while using OnShape API")
+            print("! ERROR (" + str(res.status_code) + ") while using Onshape API")
             if res.text:
                 print("! " + res.text)
-            exit()
+            raise KeyError(f"Onshape API: {res.status_code}")
             if self._logging:
                 utils.log("request failed, details: " + res.text, level=1)
         else:
