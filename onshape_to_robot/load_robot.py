@@ -127,9 +127,13 @@ def occurrence_is_suppressed(path):
         bool: True if the occurrence is suppressed; false otherwise.
     """
     this_occurrence = getOccurrence(path)
-    for this_occurrence_id in this_occurrence["path"]:
-        if occurrenceById[this_occurrence_id]["instance"]["suppressed"]:
-            return True
+    try:
+        for this_occurrence_id in this_occurrence["path"]:
+            if occurrenceById[this_occurrence_id]["instance"]["suppressed"]:
+                return True
+    except KeyError as exc:
+        print(f"path: {path}")
+        raise exc
     return False
 
 
@@ -379,8 +383,13 @@ while changed:
                 continue
             connectParts(parent, parent)
             for occurrence in occurrences.values():
-                if occurrence_is_suppressed(occurrence["path"]):
-                    continue
+                print(occurrence)
+                try:
+                    if occurrence_is_suppressed(occurrence["path"]):
+                        continue
+                except KeyError:
+                    print(f"occurrence: {occurrence}")
+                    raise
                 if occurrence["path"][0] != parent:
                     continue
                 child = occurrence["instance"]["id"]
